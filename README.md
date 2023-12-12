@@ -1,1 +1,0 @@
-# GreenShift_PowerPrediction
