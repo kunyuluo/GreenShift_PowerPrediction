@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
-from Helper import format_date, transfer_time_zone
-from Helper import select_by_date, select_by_time
-from Helper import plot_variable, plot_variable_no_time
+
 
 
 class GetData:
@@ -104,10 +102,10 @@ class GetData:
         test_remainder = test.shape[0] % self.timestep
 
         if train_remainder != 0 and test_remainder != 0:
-            train = train[0: train.shape[0] - train_remainder]
-            test = test[0: test.shape[0] - test_remainder]
-            # train = train[train_remainder:]
-            # test = test[test_remainder:]
+            # train = train[0: train.shape[0] - train_remainder]
+            # test = test[0: test.shape[0] - test_remainder]
+            train = train[train_remainder:]
+            test = test[test_remainder:]
         elif train_remainder != 0:
             train = train[0: train.shape[0] - train_remainder]
         elif test_remainder != 0:

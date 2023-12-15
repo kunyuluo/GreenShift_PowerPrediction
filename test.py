@@ -3,32 +3,50 @@ import numpy as np
 import datetime as dt
 from matplotlib import pyplot as plt
 from Helper import DefaultValueFiller
-
-from Helper import format_date, transfer_time_zone
-from Helper import select_by_date, select_by_time, minute_average_by_day
 from Helper import GSDataProcessor
 
 # Load data
 # *******************************************************************************
-data = pd.read_csv('gs_real_time_data.csv', low_memory=False)
+# data = pd.read_csv('gs_real_time_data.csv', low_memory=False)
 
 # Time zone transfer from UTC to local ('US/Eastern)
 # *******************************************************************************
-date_local = transfer_time_zone(data)
+# date_local = transfer_time_zone(data)
 # date_local = format_date(data)
+# print(date_local)
 
 # Get data from specific column
 # *******************************************************************************
-features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
+features_name = ['cp_power', 'oat', 'oah']
 
-filler = DefaultValueFiller(data, features_name)
-new_df = filler.fill_missing_value()
-print(new_df)
-new_df.to_csv('new_data.csv')
+# filler = DefaultValueFiller(data, features_name)
+# new_df = filler.fill_missing_value()
+# print(new_df)
+# new_df.to_csv('new_data.csv', index=False)
 
 # power_data = pd.concat([date_local, data[features_name]], axis=1)
 # power_data['weekday'] = power_data['data_time'].dt.weekday
 # print(power_data)
+
+target_data = GSDataProcessor(
+    'new_data.csv',
+    feature_names=features_name,
+    # start_month=10,
+    # start_day=16,
+    # end_month=10,
+    # end_day=22,
+    hour_range=(8, 20),
+    group_freq=5).X_train
+
+target_data = target_data.reshape((target_data.shape[0] * target_data.shape[1], target_data.shape[2]))
+sample = target_data[-2:, :]
+# sample = sample.reshape((1, sample.shape[0], sample.shape[1]))
+print(sample)
+print(sample.shape)
+# print(target_data)
+# print(target_data.shape)
+
+# GSDataProcessor.plot_variable_no_time(target_data, 'cp_power')
 
 
 # Construct new dataframe without missing value for each timestep

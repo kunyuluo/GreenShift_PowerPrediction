@@ -6,21 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 
-def format_date(df: pd.DataFrame, column: str = 'data_time'):
-    df['data_time'] = pd.to_datetime(df[column])
-
-    return df
-
-
-def transfer_time_zone(df: pd.DataFrame, column: str = 'data_time'):
-    df['data_time'] = pd.to_datetime(df[column])
-    df_utc = df['data_time'].dt.tz_localize('UTC')
-    df_local = df_utc.dt.tz_convert(pytz.timezone('US/Eastern')).dt.tz_localize(None).dt.floor('min')
-    # df_utc = df_utc.dt.tz_localize(None)
-
-    return df_local
-
-
 def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
     df['Year'] = df[date_column].dt.year
     df['Month'] = df[date_column].dt.month
@@ -36,79 +21,34 @@ def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
     return df
 
 
-def select_by_date(
-        df: pd.DataFrame,
-        start_month: int = 10,
-        start_day: int = 16,
-        end_month: int = 10,
-        end_day: int = 16):
-    year = dt.date.today().year
-    date_start = dt.date(year, start_month, start_day)
-    date_end = dt.date(year, end_month, end_day)
-    days = (date_end - date_start).days + 1
-
-    df_selected = df[
-        (df['data_time'].dt.month >= start_month) &
-        (df['data_time'].dt.month <= end_month) &
-        (df['data_time'].dt.day >= start_day) &
-        (df['data_time'].dt.day <= end_day)]
-
-    df_selected.set_index('data_time', inplace=True)
-
-    return df_selected
-
-
-def select_by_time(df: pd.DataFrame, start_hour: int = 8, end_hour: int = 22):
-    df_selected = df[
-        (df.index.hour >= start_hour) &
-        (df.index.hour < end_hour)]
-
-    return df_selected
-
-
-def minute_average_by_day(df: pd.DataFrame, column_name: str = 'cp_power'):
-    """
-    Calculate average value of every minute in a day by weekday (from Monday to Sunday).
-    Use the calculated value to fill empty/missing value in the dataset.
-    """
-    # try:
-    #     df.set_index('data_time', inplace=True)
-    # except IndexError:
-    #     pass
-
-    df['weekday'] = df['data_time'].dt.weekday
-
-    hours = range(24)
-    minutes = range(60)
-    default_values = {}
-
-    weekdays = {}
-    weekends = {}
-    for hour in hours:
-        hours_wday = []
-        hours_wend = []
-        for minute in minutes:
-            value_wday = df[((df['weekday'] == 0) |
-                             (df['weekday'] == 1) |
-                             (df['weekday'] == 2) |
-                             (df['weekday'] == 3) |
-                             (df['weekday'] == 4)) &
-                            (df['data_time'].dt.hour == hour) &
-                            (df['data_time'].dt.minute == minute)][column_name].mean()
-
-            value_wend = df[((df['weekday'] == 5) |
-                             (df['weekday'] == 6)) &
-                            (df['data_time'].dt.hour == hour) &
-                            (df['data_time'].dt.minute == minute)][column_name].mean()
-            hours_wday.append(value_wday)
-            hours_wend.append(value_wend)
-        weekdays[hour] = hours_wday
-        weekends[hour] = hours_wend
-
-    default_values[0] = weekdays
-    default_values[1] = weekends
-
-    return default_values
+# def select_by_date(
+#         df: pd.DataFrame,
+#         start_month: int = 10,
+#         start_day: int = 16,
+#         end_month: int = 10,
+#         end_day: int = 16):
+#     year = dt.date.today().year
+#     date_start = dt.date(year, start_month, start_day)
+#     date_end = dt.date(year, end_month, end_day)
+#     days = (date_end - date_start).days + 1
+#
+#     df_selected = df[
+#         (df['data_time'].dt.month >= start_month) &
+#         (df['data_time'].dt.month <= end_month) &
+#         (df['data_time'].dt.day >= start_day) &
+#         (df['data_time'].dt.day <= end_day)]
+#
+#     df_selected.set_index('data_time', inplace=True)
+#
+#     return df_selected
+#
+#
+# def select_by_time(df: pd.DataFrame, start_hour: int = 8, end_hour: int = 22):
+#     df_selected = df[
+#         (df.index.hour >= start_hour) &
+#         (df.index.hour < end_hour)]
+#
+#     return df_selected
 
 
 class DefaultValueFiller:
@@ -122,10 +62,17 @@ class DefaultValueFiller:
         self.feature_data = self.get_feature_data()
         self.new_dataset = self.fill_missing_value()
 
+    def transfer_time_zone(self, column: str = 'data_time'):
+        self.df['data_time'] = pd.to_datetime(self.df[column])
+        df_utc = self.df['data_time'].dt.tz_localize('UTC')
+        df_local = df_utc.dt.tz_convert(pytz.timezone('US/Eastern')).dt.tz_localize(None).dt.floor('min')
+
+        return df_local
+
     def get_feature_data(self):
         # Time zone transfer from UTC to local ('US/Eastern)
         # *******************************************************************************
-        date_local = transfer_time_zone(self.df)
+        date_local = self.transfer_time_zone()
 
         # Get data from specific column
         # *******************************************************************************
@@ -189,7 +136,7 @@ class DefaultValueFiller:
 
         return new_df
 
-    def calc_default_value(self, column_name: str = 'cp_power'):
+    def calc_default_value(self, column_name):
         """
             Calculate average value of every minute in a day by weekday (from Monday to Sunday).
             Use the calculated value to fill empty/missing value in the dataset.
@@ -198,6 +145,7 @@ class DefaultValueFiller:
         hours = range(24)
         minutes = range(60)
         default_values = {}
+
         weekdays = {}
         weekends = {}
         for hour in hours:
@@ -228,37 +176,214 @@ class DefaultValueFiller:
 
 
 class GSDataProcessor:
-    def __init__(self, data_path: str, target_column=None):
-        target_column = ['cp_power'] if target_column is None else target_column
+    def __init__(self,
+                 file_path: str,
+                 df: pd.DataFrame = None,
+                 feature_names=None,
+                 start_month: int = None,
+                 start_day: int = None,
+                 end_month: int = None,
+                 end_day: int = None,
+                 hour_range: tuple = None,
+                 group_freq: int = None,
+                 test_size: float = 0.2,
+                 n_input: int = 5,
+                 n_output: int = 5,
+                 timestep: int = 5,
+                 time_zone_transfer: bool = False,
+                 date_column: str = 'data_time'):
 
-        self.data_path = data_path
-        self.df = pd.read_csv(data_path, low_memory=False)
-        self.target_column = target_column
+        feature_names = [] if feature_names is None else feature_names
 
-    def format_date(self, column: str = 'data_time'):
-        self.df['data_time'] = pd.to_datetime(self.df[column])
+        data = df if df is not None else pd.read_csv(file_path, low_memory=False)
 
-        return self.df
+        num_features = len(feature_names) if len(feature_names) > 0 else data.shape[1] - 1
 
-    def transfer_time_zone(self, column: str = 'data_time'):
-        self.df['data_time'] = pd.to_datetime(self.df[column])
+        self.df = data
+        self.feature_names = feature_names
+        self.start_month = start_month
+        self.start_day = start_day
+        self.end_month = end_month
+        self.end_day = end_day
+        self.hour_range = hour_range
+        self.group_freq = group_freq
+        self.test_size = test_size
+        self.n_input = n_input
+        self.n_output = n_output
+        self.timestep = timestep
+        self.time_zone_transfer = time_zone_transfer
+        self.date_column = date_column
+        self.num_features = num_features
+        self.train, self.test = self.get_train_test()
+        self.X_train, self.y_train = self.to_supervised(self.train)
+        self.X_test, self.y_test = self.to_supervised(self.test)
+
+    def format_date(self):
+        self.df['data_time'] = pd.to_datetime(self.df[self.date_column])
+        df_local = self.df['data_time'].dt.tz_localize(None).dt.floor('min')
+
+        return df_local
+
+    def transfer_time_zone(self):
+        self.df['data_time'] = pd.to_datetime(self.df[self.date_column])
         df_utc = self.df['data_time'].dt.tz_localize('UTC')
         df_local = df_utc.dt.tz_convert(pytz.timezone('US/Eastern')).dt.tz_localize(None).dt.floor('min')
+        # self.df['data_time'] = df_local
         # df_utc = df_utc.dt.tz_localize(None)
 
         return df_local
 
-    def fill_missing_value(self):
-        """
-        Fill missing value in the dataset.
-        """
-        target_column = self.target_column
+    def select_by_date(
+            self,
+            df: pd.DataFrame,
+            start_year: int = dt.date.today().year,
+            end_year: int = dt.date.today().year,
+            start_month: int = 10,
+            start_day: int = 16,
+            end_month: int = 10,
+            end_day: int = 16):
 
-        if len(target_column) != 0:
-            for column in target_column:
-                self.df[column] = self.df[column].fillna(method='ffill')
+        # year = dt.date.today().year
+        # date_start = dt.date(year, start_month, start_day)
+        # date_end = dt.date(year, end_month, end_day)
+        # days = (date_end - date_start).days + 1
 
-        return self.df
+        df_selected = df[
+            (df[self.date_column].dt.year >= start_year) &
+            (df[self.date_column].dt.year <= end_year) &
+            (df[self.date_column].dt.month >= start_month) &
+            (df[self.date_column].dt.month <= end_month) &
+            (df[self.date_column].dt.day >= start_day) &
+            (df[self.date_column].dt.day <= end_day)]
+
+        # df_selected.set_index('data_time', inplace=True)
+
+        return df_selected
+
+    def select_by_time(self, df: pd.DataFrame, start_hour: int = 8, end_hour: int = 22):
+        df_selected = df[
+            (df[self.date_column].dt.hour >= start_hour) &
+            (df[self.date_column].dt.hour < end_hour)]
+
+        return df_selected
+
+    def get_period_data(self):
+        # Time zone transfer from UTC to local ('US/Eastern)
+        # *******************************************************************************
+        if self.time_zone_transfer:
+            date_local = self.transfer_time_zone()
+        else:
+            date_local = self.format_date()
+
+        # Get data from specific column
+        # *******************************************************************************
+        if len(self.feature_names) != 0:
+            target_data = pd.concat([date_local, self.df[self.feature_names]], axis=1)
+        else:
+            feature_df = self.df.drop([self.date_column], axis=1)
+            target_data = pd.concat([date_local, feature_df], axis=1)
+
+        # Get data for specified period
+        # *******************************************************************************
+        if (self.start_month is not None and
+                self.start_day is not None and
+                self.end_month is not None and
+                self.end_day is not None):
+            target_period = self.select_by_date(
+                target_data, self.start_month, self.start_day, self.end_month, self.end_day)
+        else:
+            target_period = target_data
+
+        if self.hour_range is not None:
+            target_period = self.select_by_time(target_period, self.hour_range[0], self.hour_range[1])
+        else:
+            target_period = target_period
+
+        target_period.set_index(self.date_column, inplace=True)
+
+        if self.group_freq is not None:
+            target_period = target_period.groupby(pd.Grouper(freq=f'{self.group_freq}min')).mean()
+
+        target_period = target_period.dropna()
+        # target_period = target_period.reset_index()
+        # print(target_period)
+
+        return target_period
+
+    def split_data(self):
+        """
+        Split data into train and test sets.
+        """
+        data = self.get_period_data()
+
+        if len(data) != 0:
+            train_idx = round(len(data) * (1 - self.test_size))
+            train = data[:train_idx]
+            test = data[train_idx:]
+            # train = np.array(np.split(train, train.shape[0] / self.timestep))
+            # test = np.array(np.split(test, test.shape[0] / self.timestep))
+            return train.values, test.values
+        else:
+            raise Exception('Data set is empty, cannot split.')
+
+    def get_train_test(self) -> tuple[np.array, np.array]:
+        """
+        Runs complete ETL
+        """
+        train, test = self.split_data()
+        return self.transform(train, test)
+
+    def transform(self, train: np.array, test: np.array):
+
+        train_remainder = train.shape[0] % self.timestep
+        test_remainder = test.shape[0] % self.timestep
+
+        if train_remainder != 0 and test_remainder != 0:
+            # train = train[0: train.shape[0] - train_remainder]
+            # test = test[0: test.shape[0] - test_remainder]
+            train = train[train_remainder:]
+            test = test[test_remainder:]
+        elif train_remainder != 0:
+            train = train[0: train.shape[0] - train_remainder]
+        elif test_remainder != 0:
+            test = test[0: test.shape[0] - test_remainder]
+
+        return self.window_and_reshape(train), self.window_and_reshape(test)
+        # return train, test
+
+    def window_and_reshape(self, data) -> np.array:
+        """
+        Reformats data into shape our model needs,
+        namely, [# samples, timestep, # feautures]
+        samples
+        """
+        samples = int(data.shape[0] / self.timestep)
+        result = np.array(np.array_split(data, samples))
+        return result.reshape((samples, self.timestep, self.num_features))
+
+    def to_supervised(self, data, n_out=5) -> tuple:
+        """
+        Converts our time series prediction problem to a
+        supervised learning problem.
+        """
+        # flatted the data
+        data_flattened = data.reshape((data.shape[0] * data.shape[1], data.shape[2]))
+        X, y = [], []
+        in_start = 0
+        # step over the entire history one time step at a time
+        for _ in range(len(data)):
+            # define the end of the input sequence
+            in_end = in_start + self.n_input
+            out_end = in_end + n_out
+            # ensure we have enough data for this instance
+            if out_end <= len(data_flattened):
+                x_input = data_flattened[in_start:in_end, :]
+                # x_input = x_input.reshape((x_input.shape[0], x_input.shape[1], 1))
+                X.append(x_input)
+                y.append(data_flattened[in_end:out_end, 0])
+                # move along one time step
+                in_start += 1
+        return np.array(X), np.array(y)
 
     @staticmethod
     def check_data_distribution(df: pd.DataFrame, column_name: str = 'cp_power', log_transform: bool = False):
