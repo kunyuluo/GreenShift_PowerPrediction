@@ -7,7 +7,7 @@ from Helper import GSDataProcessor
 
 # Load data
 # *******************************************************************************
-# data = pd.read_csv('gs_real_time_data.csv', low_memory=False)
+data = pd.read_csv('gs_real_time_data.csv', low_memory=False)
 
 # Time zone transfer from UTC to local ('US/Eastern)
 # *******************************************************************************
@@ -17,7 +17,7 @@ from Helper import GSDataProcessor
 
 # Get data from specific column
 # *******************************************************************************
-features_name = ['cp_power', 'oat', 'oah']
+features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
 
 # filler = DefaultValueFiller(data, features_name)
 # new_df = filler.fill_missing_value()
@@ -31,22 +31,27 @@ features_name = ['cp_power', 'oat', 'oah']
 target_data = GSDataProcessor(
     'new_data.csv',
     feature_names=features_name,
-    # start_month=10,
-    # start_day=16,
-    # end_month=10,
-    # end_day=22,
+    start_month=10,
+    start_day=16,
+    end_month=10,
+    end_day=22,
     hour_range=(8, 20),
-    group_freq=5).X_train
+    group_freq=5,
+    n_input=15,
+    n_output=5)
 
-target_data = target_data.reshape((target_data.shape[0] * target_data.shape[1], target_data.shape[2]))
-sample = target_data[-2:, :]
-# sample = sample.reshape((1, sample.shape[0], sample.shape[1]))
-print(sample)
-print(sample.shape)
-# print(target_data)
-# print(target_data.shape)
+preview_data = target_data.get_period_data()
+print(preview_data)
+# train = target_data.train
+# test = target_data.test
 
-# GSDataProcessor.plot_variable_no_time(target_data, 'cp_power')
+# print(test)
+# print(test.shape)
+# print(train)
+# print(train.shape)
+
+
+# GSDataProcessor.plot_variable_no_time(preview_data, 'cp_power')
 
 
 # Construct new dataframe without missing value for each timestep

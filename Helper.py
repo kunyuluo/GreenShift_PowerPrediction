@@ -4,6 +4,7 @@ import pytz
 import datetime as dt
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from sklearn.metrics import mean_absolute_percentage_error
 
 
 def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
@@ -19,36 +20,6 @@ def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
     df = df[column_names]
 
     return df
-
-
-# def select_by_date(
-#         df: pd.DataFrame,
-#         start_month: int = 10,
-#         start_day: int = 16,
-#         end_month: int = 10,
-#         end_day: int = 16):
-#     year = dt.date.today().year
-#     date_start = dt.date(year, start_month, start_day)
-#     date_end = dt.date(year, end_month, end_day)
-#     days = (date_end - date_start).days + 1
-#
-#     df_selected = df[
-#         (df['data_time'].dt.month >= start_month) &
-#         (df['data_time'].dt.month <= end_month) &
-#         (df['data_time'].dt.day >= start_day) &
-#         (df['data_time'].dt.day <= end_day)]
-#
-#     df_selected.set_index('data_time', inplace=True)
-#
-#     return df_selected
-#
-#
-# def select_by_time(df: pd.DataFrame, start_hour: int = 8, end_hour: int = 22):
-#     df_selected = df[
-#         (df.index.hour >= start_hour) &
-#         (df.index.hour < end_hour)]
-#
-#     return df_selected
 
 
 class DefaultValueFiller:
@@ -131,10 +102,28 @@ class DefaultValueFiller:
                 else:
                     filled_data.append(value[0])
 
+            # Fill the strange zero value:
+            self.fill_strange_value(filled_data)
+
             new_df[feature] = filled_data
             # new_df.drop(['weekday'], axis=1, inplace=True)
 
         return new_df
+
+    def fill_strange_value(self, data):
+        """
+        Replace zero value in the input list with its previous value.
+        """
+        for i in range(len(data)):
+            if data[i] == 0:
+                if i == 0:
+                    data[i] = data[i + 1]
+                else:
+                    data[i] = data[i - 1]
+            elif data[i] != 0 and data[i-1] != 0 and 1 - (data[i] / data[i-1]) > 0.8:
+                data[i] = data[i - 1] * 0.5
+            else:
+                pass
 
     def calc_default_value(self, column_name):
         """
@@ -189,7 +178,6 @@ class GSDataProcessor:
                  test_size: float = 0.2,
                  n_input: int = 5,
                  n_output: int = 5,
-                 timestep: int = 5,
                  time_zone_transfer: bool = False,
                  date_column: str = 'data_time'):
 
@@ -210,7 +198,6 @@ class GSDataProcessor:
         self.test_size = test_size
         self.n_input = n_input
         self.n_output = n_output
-        self.timestep = timestep
         self.time_zone_transfer = time_zone_transfer
         self.date_column = date_column
         self.num_features = num_features
@@ -238,27 +225,30 @@ class GSDataProcessor:
             df: pd.DataFrame,
             start_year: int = dt.date.today().year,
             end_year: int = dt.date.today().year,
-            start_month: int = 10,
-            start_day: int = 16,
-            end_month: int = 10,
-            end_day: int = 16):
+            start_month: int = None,
+            start_day: int = None,
+            end_month: int = None,
+            end_day: int = None):
 
         # year = dt.date.today().year
         # date_start = dt.date(year, start_month, start_day)
         # date_end = dt.date(year, end_month, end_day)
         # days = (date_end - date_start).days + 1
+        if (start_month is not None and
+                end_month is not None and
+                start_day is not None and
+                end_day is not None):
+            df_selected = df[
+                (df[self.date_column].dt.year >= start_year) &
+                (df[self.date_column].dt.year <= end_year) &
+                (df[self.date_column].dt.month >= start_month) &
+                (df[self.date_column].dt.month <= end_month) &
+                (df[self.date_column].dt.day >= start_day) &
+                (df[self.date_column].dt.day <= end_day)]
 
-        df_selected = df[
-            (df[self.date_column].dt.year >= start_year) &
-            (df[self.date_column].dt.year <= end_year) &
-            (df[self.date_column].dt.month >= start_month) &
-            (df[self.date_column].dt.month <= end_month) &
-            (df[self.date_column].dt.day >= start_day) &
-            (df[self.date_column].dt.day <= end_day)]
+            # df_selected.set_index('data_time', inplace=True)
 
-        # df_selected.set_index('data_time', inplace=True)
-
-        return df_selected
+            return df_selected
 
     def select_by_time(self, df: pd.DataFrame, start_hour: int = 8, end_hour: int = 22):
         df_selected = df[
@@ -290,7 +280,8 @@ class GSDataProcessor:
                 self.end_month is not None and
                 self.end_day is not None):
             target_period = self.select_by_date(
-                target_data, self.start_month, self.start_day, self.end_month, self.end_day)
+                target_data, start_month=self.start_month, start_day=self.start_day,
+                end_month=self.end_month, end_day=self.end_day)
         else:
             target_period = target_data
 
@@ -335,8 +326,8 @@ class GSDataProcessor:
 
     def transform(self, train: np.array, test: np.array):
 
-        train_remainder = train.shape[0] % self.timestep
-        test_remainder = test.shape[0] % self.timestep
+        train_remainder = train.shape[0] % self.n_input
+        test_remainder = test.shape[0] % self.n_input
 
         if train_remainder != 0 and test_remainder != 0:
             # train = train[0: train.shape[0] - train_remainder]
@@ -357,14 +348,15 @@ class GSDataProcessor:
         namely, [# samples, timestep, # feautures]
         samples
         """
-        samples = int(data.shape[0] / self.timestep)
+        samples = int(data.shape[0] / self.n_input)
         result = np.array(np.array_split(data, samples))
-        return result.reshape((samples, self.timestep, self.num_features))
+        return result.reshape((samples, self.n_input, self.num_features))
 
-    def to_supervised(self, data, n_out=5) -> tuple:
+    def to_supervised(self, data) -> tuple:
         """
         Converts our time series prediction problem to a
         supervised learning problem.
+        Input has to be reshaped to 3D [samples, timesteps, features]
         """
         # flatted the data
         data_flattened = data.reshape((data.shape[0] * data.shape[1], data.shape[2]))
@@ -374,7 +366,7 @@ class GSDataProcessor:
         for _ in range(len(data)):
             # define the end of the input sequence
             in_end = in_start + self.n_input
-            out_end = in_end + n_out
+            out_end = in_end + self.n_output
             # ensure we have enough data for this instance
             if out_end <= len(data_flattened):
                 x_input = data_flattened[in_start:in_end, :]
@@ -469,3 +461,141 @@ class GSDataProcessor:
         ax.set_ylim(0, )
 
         plt.show()
+
+
+class PredictAndForecast:
+    """
+    model: tf.keras.Model
+    train: np.array
+    test: np.array
+    Takes a trained model, train, and test datasets and returns predictions
+    of len(test) with same shape.
+    """
+
+    def __init__(self, model, test, n_input=5) -> None:
+        self.model = model
+        # self.train = train
+        self.test = test
+        self.n_input = n_input
+        self.predictions = self.get_predictions()
+
+    def forcast(self, history) -> np.array:
+        """
+        Given last weeks actual data, forecasts next weeks' prices.
+        """
+        # Flatten data
+        data = np.array(history)
+        data = data.reshape((data.shape[0] * data.shape[1], data.shape[2]))
+
+        # retrieve last observations for input data
+        x_input = data[-self.n_input:, :]
+        x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
+
+        # forecast the next week
+        yhat = self.model.predict(x_input, verbose=0)
+
+        # we only want the vector forecast
+        yhat = yhat[0]
+        return yhat
+
+    def get_predictions(self) -> np.array:
+        """
+        compiles models predictions week by week over entire test set.
+        """
+        # history is a list of weekly data
+        # history = [x for x in self.train]
+        history = []
+
+        # walk-forward validation over each week
+        predictions = []
+        for i in range(len(self.test)):
+            # get real observation and add to history for predicting the next week
+            history.append(self.test[i, :])
+
+            yhat_sequence = self.forcast(history)
+
+            # store the predictions
+            predictions.append(yhat_sequence)
+
+        return np.array(predictions)
+
+
+class Evaluate:
+    def __init__(self, actual, predictions) -> None:
+        if actual.shape[2] > 1:
+            actual_values = actual[:, :, 0]
+        else:
+            actual_values = actual
+        self.actual = actual_values
+        self.predictions = predictions
+        self.var_ratio = self.compare_var()
+        self.mape = self.evaluate_model_with_mape()
+
+    def compare_var(self) -> float:
+        """
+        Calculates the variance ratio of the predictions
+        """
+        return abs(1 - (np.var(self.predictions)) / np.var(self.actual))
+
+    def evaluate_model_with_mape(self) -> float:
+        """
+        Calculates the mean absolute percentage error
+        """
+        return mean_absolute_percentage_error(self.actual.flatten(), self.predictions.flatten())
+
+
+def plot_metrics(history, epochs: int = 25):
+    acc = history.history['mape']
+    val_acc = history.history['val_mape']
+
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    epochs_range = range(epochs)
+
+    plt.figure(figsize=(8, 8))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, acc, label='Training MAPE')
+    plt.plot(epochs_range, val_acc, label='Validation MAPE')
+    plt.legend(loc='lower right')
+    # plt.ylim(0, 50)
+    plt.title('Training and Validation MAPE')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, loss, label='Training Loss')
+    plt.plot(epochs_range, val_loss, label='Validation Loss')
+    plt.legend(loc='upper right')
+    # plt.ylim(0, 100)
+    plt.title('Training and Validation Loss')
+    plt.show()
+
+
+def plot_results(test, preds, df, title_suffix=None, xlabel='Power Prediction'):
+    """
+    Plots training data in blue, actual values in red, and predictions in green, over time.
+    """
+    fig, ax = plt.subplots(figsize=(18, 6))
+    # x = df.Close[-498:].index
+    if test.shape[2] > 1:
+        test = test[:, :, 0]
+
+    plot_test = test[0:]
+    plot_preds = preds[0:]
+
+    x = df[-(plot_test.shape[0] * plot_test.shape[1]):].index
+    plot_test = plot_test.reshape((plot_test.shape[0] * plot_test.shape[1], 1))
+    plot_preds = plot_preds.reshape((plot_test.shape[0] * plot_test.shape[1], 1))
+
+    ax.plot(x, plot_test, label='actual')
+    ax.plot(x, plot_preds, label='preds')
+
+    if title_suffix is None:
+        ax.set_title('Predictions vs. Actual')
+    else:
+        ax.set_title(f'Predictions vs. Actual, {title_suffix}')
+
+    ax.set_xlabel('Date')
+    ax.set_ylabel(xlabel)
+    ax.legend()
+
+    plt.show()
