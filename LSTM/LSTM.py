@@ -16,8 +16,8 @@ def build_lstm_1(dataset: GSDataProcessor, epochs=25, batch_size=32):
     callbacks = [tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)]
     opt = Adam(learning_rate=0.001)
     model = Sequential()
-    model.add(LSTM(230, input_shape=(n_timesteps, n_features)))
-    model.add(Dense(50))
+    model.add(LSTM(300, input_shape=(n_timesteps, n_features)))
+    model.add(Dense(100))
     model.add(Dense(n_outputs))
 
     print("compliling baseline model")

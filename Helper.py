@@ -301,6 +301,13 @@ class GSDataProcessor:
 
         return target_period
 
+    def get_train_test(self) -> tuple[np.array, np.array]:
+        """
+        Runs complete ETL
+        """
+        train, test = self.split_data()
+        return self.transform(train, test)
+
     def split_data(self):
         """
         Split data into train and test sets.
@@ -317,13 +324,6 @@ class GSDataProcessor:
         else:
             raise Exception('Data set is empty, cannot split.')
 
-    def get_train_test(self) -> tuple[np.array, np.array]:
-        """
-        Runs complete ETL
-        """
-        train, test = self.split_data()
-        return self.transform(train, test)
-
     def transform(self, train: np.array, test: np.array):
 
         train_remainder = train.shape[0] % self.n_input
@@ -335,9 +335,9 @@ class GSDataProcessor:
             train = train[train_remainder:]
             test = test[test_remainder:]
         elif train_remainder != 0:
-            train = train[0: train.shape[0] - train_remainder]
+            train = train[train_remainder:]
         elif test_remainder != 0:
-            test = test[0: test.shape[0] - test_remainder]
+            test = test[test_remainder:]
 
         return self.window_and_reshape(train), self.window_and_reshape(test)
         # return train, test
@@ -472,24 +472,29 @@ class PredictAndForecast:
     of len(test) with same shape.
     """
 
-    def __init__(self, model, test, n_input=5) -> None:
+    def __init__(self, model, train, test, n_input=5, n_output=5) -> None:
+        train = train.reshape((train.shape[0] * train.shape[1], train.shape[2]))
+        test = test.reshape((test.shape[0] * test.shape[1], test.shape[2]))
+
         self.model = model
-        # self.train = train
+        self.train = train
         self.test = test
         self.n_input = n_input
-        self.predictions = self.get_predictions()
+        self.n_output = n_output
+        # self.updated_test = self.updated_test()
+        # self.predictions = self.get_predictions()
 
-    def forcast(self, history) -> np.array:
+    def forcast(self, x_input) -> np.array:
         """
         Given last weeks actual data, forecasts next weeks' prices.
         """
         # Flatten data
-        data = np.array(history)
-        data = data.reshape((data.shape[0] * data.shape[1], data.shape[2]))
+        # data = np.array(history)
+        # data = data.reshape((data.shape[0] * data.shape[1], data.shape[2]))
 
         # retrieve last observations for input data
-        x_input = data[-self.n_input:, :]
-        x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
+        # x_input = data[-self.n_input:, :]
+        # x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
 
         # forecast the next week
         yhat = self.model.predict(x_input, verbose=0)
@@ -502,30 +507,55 @@ class PredictAndForecast:
         """
         compiles models predictions week by week over entire test set.
         """
-        # history is a list of weekly data
-        # history = [x for x in self.train]
-        history = []
+        # history is a list of flattened test data + last observation from train data
+        test_remainder = self.test.shape[0] % self.n_output
+        if test_remainder != 0:
+            test = self.test[:-test_remainder]
+        else:
+            test = self.test
 
-        # walk-forward validation over each week
+        history = [x for x in self.train[-self.n_input:, :]]
+        history.extend(test)
+        # print(len(history))
+        step = round(len(history) / self.n_output)
+        # history = []
+
+        # walk-forward validation
         predictions = []
-        for i in range(len(self.test)):
+        window_start = 0
+        for i in range(step):
+
+            if window_start <= len(history) - self.n_input - self.n_output:
+                # print('pred no {}, window_start {}'.format(i+1, window_start))
+                x_input = np.array(history[window_start:window_start + self.n_input])
+                x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
+                yhat_sequence = self.forcast(x_input)
+                # print('pred no {}'.format(i))
+                # store the predictions
+                predictions.append(yhat_sequence)
+
+            window_start += self.n_output
             # get real observation and add to history for predicting the next week
-            history.append(self.test[i, :])
-
-            yhat_sequence = self.forcast(history)
-
-            # store the predictions
-            predictions.append(yhat_sequence)
+            # history.append(self.test[i, :])
 
         return np.array(predictions)
+
+    def updated_test(self):
+        test_remainder = self.test.shape[0] % self.n_output
+        if test_remainder != 0:
+            test = self.test[:-test_remainder]
+            return test
+        else:
+            return self.test
 
 
 class Evaluate:
     def __init__(self, actual, predictions) -> None:
-        if actual.shape[2] > 1:
-            actual_values = actual[:, :, 0]
+        if actual.shape[1] > 1:
+            actual_values = actual[:, 0]
         else:
             actual_values = actual
+
         self.actual = actual_values
         self.predictions = predictions
         self.var_ratio = self.compare_var()
@@ -576,18 +606,18 @@ def plot_results(test, preds, df, title_suffix=None, xlabel='Power Prediction'):
     """
     fig, ax = plt.subplots(figsize=(18, 6))
     # x = df.Close[-498:].index
-    if test.shape[2] > 1:
-        test = test[:, :, 0]
+    if test.shape[1] > 1:
+        test = test[:, 0]
 
     plot_test = test[0:]
     plot_preds = preds[0:]
 
-    x = df[-(plot_test.shape[0] * plot_test.shape[1]):].index
-    plot_test = plot_test.reshape((plot_test.shape[0] * plot_test.shape[1], 1))
-    plot_preds = plot_preds.reshape((plot_test.shape[0] * plot_test.shape[1], 1))
+    # x = df[-(plot_test.shape[0] * plot_test.shape[1]):].index
+    # plot_test = plot_test.reshape((plot_test.shape[0] * plot_test.shape[1], 1))
+    plot_preds = plot_preds.reshape((plot_preds.shape[0] * plot_preds.shape[1], 1))
 
-    ax.plot(x, plot_test, label='actual')
-    ax.plot(x, plot_preds, label='preds')
+    ax.plot(plot_test, label='actual')
+    ax.plot(plot_preds, label='preds')
 
     if title_suffix is None:
         ax.set_title('Predictions vs. Actual')

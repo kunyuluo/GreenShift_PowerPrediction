@@ -15,8 +15,8 @@ data = GSDataProcessor(
     # end_day=22,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=15,
-    n_output=5)
+    n_input=24,
+    n_output=3)
 
 # Build the model
 # *************************************************************************
