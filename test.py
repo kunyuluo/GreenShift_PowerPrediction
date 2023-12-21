@@ -31,17 +31,17 @@ features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
 target_data = GSDataProcessor(
     'new_data.csv',
     feature_names=features_name,
-    start_month=10,
-    start_day=16,
-    end_month=10,
-    end_day=22,
+    # start_month=10,
+    # start_day=16,
+    # end_month=10,
+    # end_day=22,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=15,
-    n_output=5)
+    n_input=12,
+    n_output=6)
 
 preview_data = target_data.get_period_data()
-print(preview_data)
+# print(preview_data)
 # train = target_data.train
 # test = target_data.test
 
@@ -51,7 +51,7 @@ print(preview_data)
 # print(train.shape)
 
 
-# GSDataProcessor.plot_variable_no_time(preview_data, 'cp_power')
+GSDataProcessor.plot_variable_no_time(preview_data, 'cp_power')
 
 
 # Construct new dataframe without missing value for each timestep

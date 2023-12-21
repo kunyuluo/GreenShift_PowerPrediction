@@ -1,5 +1,5 @@
 from Helper import GSDataProcessor, plot_metrics
-from LSTM import build_lstm_1, build_lstm_2, build_lstm_3
+from LSTM import build_lstm_1, build_lstm_2, build_lstm_3, build_lstm_4
 import pickle
 
 # Prepare the data
@@ -15,12 +15,12 @@ data = GSDataProcessor(
     # end_day=22,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=24,
-    n_output=3)
+    n_input=6,
+    n_output=6)
 
 # Build the model
 # *************************************************************************
-model_index = 1
+model_index = 4
 epochs = 30
 batch_size = 32
 
@@ -28,8 +28,10 @@ if model_index == 1:
     baseline = build_lstm_1(data, epochs=epochs, batch_size=batch_size)
 elif model_index == 2:
     baseline = build_lstm_2(data, epochs=epochs, batch_size=batch_size)
-else:
+elif model_index == 3:
     baseline = build_lstm_3(data, epochs=epochs, batch_size=batch_size)
+else:
+    baseline = build_lstm_4(data, epochs=epochs, batch_size=batch_size)
 
 model = baseline[0]
 history = baseline[1]

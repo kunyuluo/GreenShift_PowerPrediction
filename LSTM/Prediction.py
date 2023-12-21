@@ -6,7 +6,7 @@ from Helper import GSDataProcessor, PredictAndForecast, Evaluate, plot_results
 
 # Load the model
 # *************************************************************************
-model_index = 1
+model_index = 4
 with open('models/model_lstm_{}.pkl'.format(model_index), 'rb') as f:
     model = pickle.load(f)
 
@@ -23,8 +23,8 @@ data = GSDataProcessor(
     # end_day=22,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=24,
-    n_output=3)
+    n_input=6,
+    n_output=6)
 
 # print(data.X_test.shape)
 # index = 4
@@ -32,7 +32,7 @@ data = GSDataProcessor(
 # sample_y = data.y_test[index].reshape(1, len(data.y_test[0]))
 # print(data.test)
 
-prediction = PredictAndForecast(model, data.train, data.test, n_input=24, n_output=3)
+prediction = PredictAndForecast(model, data.train, data.test, n_input=6, n_output=6)
 predict_values = prediction.get_predictions()
 
 # Evaluate the prediction
