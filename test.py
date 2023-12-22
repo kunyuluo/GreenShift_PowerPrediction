@@ -4,10 +4,11 @@ import datetime as dt
 from matplotlib import pyplot as plt
 from Helper import DefaultValueFiller
 from Helper import GSDataProcessor
+from sklearn.preprocessing import MinMaxScaler
 
 # Load data
 # *******************************************************************************
-data = pd.read_csv('gs_real_time_data.csv', low_memory=False)
+# data = pd.read_csv('gs_real_time_data.csv', low_memory=False)
 
 # Time zone transfer from UTC to local ('US/Eastern)
 # *******************************************************************************
@@ -40,18 +41,23 @@ target_data = GSDataProcessor(
     n_input=12,
     n_output=6)
 
-preview_data = target_data.get_period_data()
+# preview_data = target_data.get_period_data()
 # print(preview_data)
-# train = target_data.train
+train = target_data.train
+train = train.reshape(train.shape[0]*train.shape[1], train.shape[2])
 # test = target_data.test
 
-# print(test)
-# print(test.shape)
+# Normalizing data, scale between 0 and 1:
+sc = MinMaxScaler(feature_range=(0, 1))
+train_scaled = sc.fit_transform(train)
+
 # print(train)
 # print(train.shape)
+print(train_scaled)
+print(train_scaled.shape)
 
 
-GSDataProcessor.plot_variable_no_time(preview_data, 'cp_power')
+# GSDataProcessor.plot_variable_no_time(preview_data, 'cp_power')
 
 
 # Construct new dataframe without missing value for each timestep

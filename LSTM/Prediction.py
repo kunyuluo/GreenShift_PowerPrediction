@@ -1,12 +1,10 @@
 import pickle
-import numpy as np
-from pandas import DataFrame
 from Helper import GSDataProcessor, PredictAndForecast, Evaluate, plot_results
 
 
 # Load the model
 # *************************************************************************
-model_index = 4
+model_index = 1
 with open('models/model_lstm_{}.pkl'.format(model_index), 'rb') as f:
     model = pickle.load(f)
 
@@ -23,8 +21,8 @@ data = GSDataProcessor(
     # end_day=22,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=6,
-    n_output=6)
+    n_input=12,
+    n_output=1)
 
 # print(data.X_test.shape)
 # index = 4
@@ -32,14 +30,14 @@ data = GSDataProcessor(
 # sample_y = data.y_test[index].reshape(1, len(data.y_test[0]))
 # print(data.test)
 
-prediction = PredictAndForecast(model, data.train, data.test, n_input=6, n_output=6)
+prediction = PredictAndForecast(model, data.train, data.test, n_input=12, n_output=1)
 predict_values = prediction.get_predictions()
 
 # Evaluate the prediction
 # *************************************************************************
 evals = Evaluate(prediction.updated_test(), predict_values)
-print('Uni_LSTM Model\'s mape is: {}%'.format(round(evals.mape*100, 1)))
-print('Uni_LSTM Model\'s var ratio is: {}%'.format(round(evals.var_ratio*100, 1)))
+print('LSTM Model\'s mape is: {}%'.format(round(evals.mape*100, 1)))
+print('LSTM Model\'s var ratio is: {}%'.format(round(evals.var_ratio*100, 1)))
 
 # Visualize the results
 # *************************************************************************

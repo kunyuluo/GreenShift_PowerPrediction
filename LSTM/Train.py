@@ -1,5 +1,6 @@
 from Helper import GSDataProcessor, plot_metrics
 from LSTM import build_lstm_1, build_lstm_2, build_lstm_3, build_lstm_4
+from sklearn.preprocessing import MinMaxScaler
 import pickle
 
 # Prepare the data
@@ -15,12 +16,12 @@ data = GSDataProcessor(
     # end_day=22,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=6,
-    n_output=6)
+    n_input=12,
+    n_output=1)
 
 # Build the model
 # *************************************************************************
-model_index = 4
+model_index = 1
 epochs = 30
 batch_size = 32
 

@@ -5,6 +5,7 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from sklearn.metrics import mean_absolute_percentage_error
+from sklearn.preprocessing import MinMaxScaler
 
 
 def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
@@ -587,7 +588,7 @@ def plot_metrics(history, epochs: int = 25):
     plt.subplot(1, 2, 1)
     plt.plot(epochs_range, acc, label='Training MAPE')
     plt.plot(epochs_range, val_acc, label='Validation MAPE')
-    plt.legend(loc='lower right')
+    plt.legend(loc='upper right')
     # plt.ylim(0, 50)
     plt.title('Training and Validation MAPE')
 

@@ -17,7 +17,7 @@ def build_lstm_1(dataset: GSDataProcessor, epochs=25, batch_size=32):
     opt = Adam(learning_rate=0.001)
     model = Sequential()
     model.add(LSTM(350, input_shape=(n_timesteps, n_features)))
-    model.add(Dense(150))
+    model.add(Dense(50))
     model.add(Dense(n_outputs))
 
     print("compliling baseline model")
