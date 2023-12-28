@@ -517,7 +517,7 @@ class PredictAndForecast:
 
         history = [x for x in self.train[-self.n_input:, :]]
         history.extend(test)
-        # print(len(history))
+
         step = round(len(history) / self.n_output)
         # history = []
 
@@ -549,6 +549,90 @@ class PredictAndForecast:
         else:
             return self.test
 
+    def get_sample_prediction(self, index=0):
+
+        test_remainder = self.test.shape[0] % self.n_output
+        if test_remainder != 0:
+            test = self.test[:-test_remainder]
+        else:
+            test = self.test
+
+        history = [x for x in self.train[-self.n_input:, :]]
+        history.extend(test)
+
+        if index < len(test)-self.n_output:
+            index = index
+        else:
+            index = len(test)-self.n_output
+
+        x_input = np.array(history[index:index+self.n_input])
+        x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
+        # print(x_input)
+        yhat_sequence = self.forcast(x_input)
+        actual = test[index:index+self.n_output, 0]
+
+        return np.array(yhat_sequence), actual
+
+    def walk_forward_validation(self, pred_length, start_point=0):
+        """
+        walk-forward validation for univariate data.
+        """
+        test_remainder = self.test.shape[0] % self.n_output
+        if test_remainder != 0:
+            test = self.test[:-test_remainder]
+        else:
+            test = self.test
+
+        history = [x for x in self.train[-self.n_input:, :]]
+        history.extend(test)
+
+        if start_point < len(test)-pred_length:
+            start_point = start_point
+        else:
+            start_point = len(test)-pred_length
+
+        inputs = np.array(history[start_point:start_point + self.n_input])
+        predictions = []
+        actuals = []
+
+        max_length = len(self.test) - (start_point + 1) - self.n_output
+
+        if pred_length > max_length:
+            pred_length = max_length
+        else:
+            pred_length = pred_length
+
+        step = round(pred_length / self.n_output)
+
+        for i in range(step):
+            # Prepare the input sequence
+            x_input = inputs[-self.n_input:]
+            x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
+
+            # Make prediction
+            yhat_sequence = self.forcast(x_input)
+            # print(yhat_sequence)
+            predictions.append(yhat_sequence)
+
+            # Get actual value for the current timestep
+            actual = self.test[start_point:start_point + self.n_output, 0]
+            # print(actual)
+            actuals.append(actual)
+
+            # Update the input sequence
+            x_input_new = self.test[start_point:start_point + self.n_output, :]
+            print(x_input_new)
+            for j in range(len(yhat_sequence)):
+                np.put(x_input_new[j], 0, yhat_sequence[j])
+            print(x_input_new)
+            inputs = np.append(inputs, x_input_new, axis=0)
+
+            # Store the predicted value and actual value
+
+            start_point += self.n_output
+
+        return np.array(predictions), np.array(actuals)
+
 
 class Evaluate:
     def __init__(self, actual, predictions) -> None:
@@ -573,6 +657,17 @@ class Evaluate:
         Calculates the mean absolute percentage error
         """
         return mean_absolute_percentage_error(self.actual.flatten(), self.predictions.flatten())
+
+
+# class SampleForcast:
+#     def __init__(self, model, train, test, n_input=5, n_output=5):
+#         self.model = model
+#         self.train = train
+#         self.test = test
+#         self.n_input = n_input
+#         self.n_output = n_output
+#
+#     def get_sample(self, index=0):
 
 
 def plot_metrics(history, epochs: int = 25):
@@ -629,4 +724,15 @@ def plot_results(test, preds, df, title_suffix=None, xlabel='Power Prediction'):
     ax.set_ylabel(xlabel)
     ax.legend()
 
+    plt.show()
+
+
+def plot_sample_results(test, preds):
+    plt.plot(test, color='black', label='Actual')
+    plt.plot(preds, color='green', label='Predicted')
+    # plt.title('Power Prediction')
+    # plt.xlabel('Hour')
+    # plt.ylabel('kWh')
+    plt.legend()
+    plt.ylim(0, 200)
     plt.show()

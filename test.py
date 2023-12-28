@@ -38,107 +38,78 @@ target_data = GSDataProcessor(
     # end_day=22,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=12,
-    n_output=6)
+    n_input=24,
+    n_output=1)
 
 # preview_data = target_data.get_period_data()
 # print(preview_data)
 train = target_data.train
-train = train.reshape(train.shape[0]*train.shape[1], train.shape[2])
-# test = target_data.test
+train = train.reshape(train.shape[0] * train.shape[1], train.shape[2])
+test = target_data.test
+test = test.reshape(test.shape[0] * test.shape[1], test.shape[2])
+
+spt = test[:, 3]
+print(spt)
+df = pd.DataFrame(spt)
+df.to_csv('spt_test.csv')
+# n_input = 7
+# n_output = 1
+# start_point = 0
+# pred_length = 10
+#
+# test_remainder = test.shape[0] % n_output
+# if test_remainder != 0:
+#     test = test[:-test_remainder]
+# else:
+#     test = test
+#
+# history = [x for x in train[-n_input:, :]]
+# history.extend(test)
+
+# x_input = np.array(history[0:7])
+# x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
+# print(x_input)
+# print(x_input.shape)
+
+# if start_point < len(test) - pred_length:
+#     start_point = start_point
+# else:
+#     start_point = len(test) - pred_length
+#
+# inputs = np.array(history[start_point:start_point + n_input])
+
+# x_input = inputs[-7:]
+# print(inputs)
+# print(x_input)
+# print(type(x_input))
+
+# arr1 = np.array([[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6], [4, 5, 6, 7]])
+# arr2 = np.array([[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6], [4, 5, 6, 7]])
+# new_values = np.array([20, 30, 40, 50])
+# new_values = new_values.reshape(new_values.shape[0], 1)
+
+# np.put(arr, [0, 0, 0, 0], new_values)
+# for i in range(len(new_values)):
+#     np.put(arr2[i], 0, new_values[i])
+#
+# arr1 = np.append(arr1, arr2, axis=0)
+# print(arr1)
 
 # Normalizing data, scale between 0 and 1:
-sc = MinMaxScaler(feature_range=(0, 1))
-train_scaled = sc.fit_transform(train)
+# sc = MinMaxScaler(feature_range=(0, 1))
+# train_scaled = sc.fit_transform(train)
 
 # print(train)
 # print(train.shape)
-print(train_scaled)
-print(train_scaled.shape)
-
+# print(train_scaled)
+# print(train_scaled.shape)
 
 # GSDataProcessor.plot_variable_no_time(preview_data, 'cp_power')
-
-
-# Construct new dataframe without missing value for each timestep
-# *******************************************************************************
-# datetimes = []
-# dt_min = power_data['data_time'].min()
-# dt_max = power_data['data_time'].max()
-# year_range = range(dt_min.year, dt_max.year + 1)
-# month_range = range(dt_min.month, dt_max.month + 1)
-# start_day, end_day = dt_min.day, dt_max.day
-# num_days_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-#
-# for year in year_range:
-#     for i, month in enumerate(month_range):
-#         if i == 0:
-#             for day in range(start_day, num_days_month[month - 1] + 1):
-#                 for hour in range(24):
-#                     for minute in range(60):
-#                         datetimes.append(dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
-#         elif i == len(month_range) - 1:
-#             for day in range(1, end_day + 1):
-#                 for hour in range(24):
-#                     for minute in range(60):
-#                         datetimes.append(dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
-#         else:
-#             for day in range(1, num_days_month[i] + 1):
-#                 for hour in range(24):
-#                     for minute in range(60):
-#                         datetimes.append(dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
-# # print(pd.to_datetime(datetimes))
-# df = pd.DataFrame(pd.to_datetime(datetimes), columns=['data_time'])
-# df['weekday'] = df['data_time'].dt.weekday
-#
-# for feature in features_name:
-#     default = minute_average_by_day(power_data, feature)
-#     feature_data = []
-#     for date in datetimes:
-#         value = power_data[(power_data['data_time'] == date)]['cp_power'].values
-#
-#         if len(value) == 0:
-#             weekday = date.weekday()
-#             if weekday in [0, 1, 2, 3, 4]:
-#                 value = default[0][date.hour][date.minute]
-#             elif weekday in [5, 6]:
-#                 value = default[1][date.hour][date.minute]
-#
-#             feature_data.append(value)
-#         else:
-#             feature_data.append(value[0])
-#
-#     df[feature] = feature_data
-#
-# print(df)
-
-# default = minute_average_by_day(power_data, 'cp_power')
-# values_1 = []
-# values_2 = []
-# for hour in range(24):
-#     values_1.extend(default[0][hour])
-#     values_2.extend(default[1][hour])
-# plt.plot(values_1, label='weekday')
-# plt.plot(values_2, label='weekend')
-# # plt.ylim([0, 250])
-# plt.legend()
-# plt.show()
-
-# Get data for specified period
-# *******************************************************************************
-# start_month, start_day, end_month, end_day = 10, 16, 10, 19
-# power_period = select_by_date(power_data, start_month, start_day, end_month, end_day)
-# power_period = select_by_time(power_period, 8, 20)
-# print(power_period)
-# power_period = power_period.groupby(pd.Grouper(freq='5min')).mean()
-# power_period = power_period.dropna()
-
-# print(power_period)
 
 # Plot the selected data
 # *******************************************************************************
 # GSDataProcessor.plot_variable(power_period, 'cp_power', True)
 # GSDataProcessor.plot_variable_no_time(power_period, 'cp_power')
 # GSDataProcessor.check_data_distribution(data, 'downstream_chwsstpt')
-# GSDataProcessor.check_linearity(data, 'cp_power', 'downstream_chwsstpt', True)
+# GSDataProcessor.check_linearity(preview_data, 'cp_power', 'oat', True)
 # GSDataProcessor.check_autocorrelation(data, 'cp_power')
