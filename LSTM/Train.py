@@ -7,22 +7,24 @@ import pickle
 # *************************************************************************
 file_path = '../new_data.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
+n_input, n_output = 24, 6
 data = GSDataProcessor(
     file_path,
     feature_names=features_name,
-    # start_month=10,
-    # start_day=16,
-    # end_month=10,
-    # end_day=22,
+    test_size=0.2,
+    start_month=8,
+    start_day=18,
+    end_month=11,
+    end_day=11,
     hour_range=(8, 20),
     group_freq=5,
-    n_input=24,
-    n_output=1)
+    n_input=n_input,
+    n_output=n_output)
 
 # Build the model
 # *************************************************************************
-model_index = 1
-epochs = 30
+model_index = 2
+epochs = 70
 batch_size = 32
 
 if model_index == 1:

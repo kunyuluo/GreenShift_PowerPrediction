@@ -32,26 +32,27 @@ features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
 target_data = GSDataProcessor(
     'new_data.csv',
     feature_names=features_name,
-    # start_month=10,
-    # start_day=16,
-    # end_month=10,
-    # end_day=22,
+    start_month=8,
+    start_day=18,
+    end_month=11,
+    end_day=11,
     hour_range=(8, 20),
     group_freq=5,
     n_input=24,
-    n_output=1)
+    n_output=6)
 
-# preview_data = target_data.get_period_data()
-# print(preview_data)
+# df = target_data.get_period_data()
+# print(df)
+
 train = target_data.train
 train = train.reshape(train.shape[0] * train.shape[1], train.shape[2])
 test = target_data.test
 test = test.reshape(test.shape[0] * test.shape[1], test.shape[2])
 
-spt = test[:, 3]
-print(spt)
-df = pd.DataFrame(spt)
-df.to_csv('spt_test.csv')
+# spt = test[:, 3]
+# print(spt)
+df = pd.DataFrame(test)
+df.to_csv('test_trimmed.csv')
 # n_input = 7
 # n_output = 1
 # start_point = 0

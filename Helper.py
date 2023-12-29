@@ -239,13 +239,18 @@ class GSDataProcessor:
                 end_month is not None and
                 start_day is not None and
                 end_day is not None):
-            df_selected = df[
-                (df[self.date_column].dt.year >= start_year) &
-                (df[self.date_column].dt.year <= end_year) &
-                (df[self.date_column].dt.month >= start_month) &
-                (df[self.date_column].dt.month <= end_month) &
-                (df[self.date_column].dt.day >= start_day) &
-                (df[self.date_column].dt.day <= end_day)]
+            # df_selected = df[
+            #     (df[self.date_column].dt.year >= start_year) &
+            #     (df[self.date_column].dt.year <= end_year) &
+            #     (df[self.date_column].dt.month >= start_month) &
+            #     (df[self.date_column].dt.month <= end_month) &
+            #     (df[self.date_column].dt.day >= start_day) &
+            #     (df[self.date_column].dt.day <= end_day)]
+
+            start = pd.to_datetime(dt.datetime(start_year, start_month, start_day))
+            end = pd.to_datetime(dt.datetime(end_year, end_month, end_day))
+
+            df_selected = df[(df[self.date_column] >= start) & (df[self.date_column] < end)]
 
             # df_selected.set_index('data_time', inplace=True)
 
@@ -301,6 +306,7 @@ class GSDataProcessor:
         # print(target_period)
 
         return target_period
+        # return target_data
 
     def get_train_test(self) -> tuple[np.array, np.array]:
         """
@@ -595,7 +601,7 @@ class PredictAndForecast:
         predictions = []
         actuals = []
 
-        max_length = len(self.test) - (start_point + 1) - self.n_output
+        max_length = len(test) - (start_point + 1) - self.n_output
 
         if pred_length > max_length:
             pred_length = max_length
@@ -607,31 +613,34 @@ class PredictAndForecast:
         for i in range(step):
             # Prepare the input sequence
             x_input = inputs[-self.n_input:]
+            # print(x_input)
             x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
 
             # Make prediction
             yhat_sequence = self.forcast(x_input)
-            # print(yhat_sequence)
-            predictions.append(yhat_sequence)
+            for value in yhat_sequence:
+                # print(yhat_sequence)
+                predictions.append(value)
 
             # Get actual value for the current timestep
-            actual = self.test[start_point:start_point + self.n_output, 0]
-            # print(actual)
-            actuals.append(actual)
+            actual = test[start_point:start_point + self.n_output, 0]
+            for value in actual:
+                # print(actual)
+                actuals.append(value)
 
             # Update the input sequence
-            x_input_new = self.test[start_point:start_point + self.n_output, :]
-            print(x_input_new)
-            for j in range(len(yhat_sequence)):
-                np.put(x_input_new[j], 0, yhat_sequence[j])
-            print(x_input_new)
-            inputs = np.append(inputs, x_input_new, axis=0)
+            x_input_new = test[start_point:start_point + self.n_output, :]
+            # print(x_input_new)
 
-            # Store the predicted value and actual value
+            for j in range(len(yhat_sequence)):
+                # np.put(x_input_new[j], 0, yhat_sequence[j])
+                x_input_new[j, 0] = yhat_sequence[j]
+
+            inputs = np.append(inputs, x_input_new, axis=0)
 
             start_point += self.n_output
 
-        return np.array(predictions), np.array(actuals)
+        return np.array(predictions).reshape(-1, 1), np.array(actuals).reshape(-1, 1)
 
 
 class Evaluate:
@@ -696,7 +705,7 @@ def plot_metrics(history, epochs: int = 25):
     plt.show()
 
 
-def plot_results(test, preds, df, title_suffix=None, xlabel='Power Prediction'):
+def plot_results(test, preds, title_suffix=None, xlabel='Power Prediction', ylim=None):
     """
     Plots training data in blue, actual values in red, and predictions in green, over time.
     """
@@ -723,6 +732,8 @@ def plot_results(test, preds, df, title_suffix=None, xlabel='Power Prediction'):
     ax.set_xlabel('Date')
     ax.set_ylabel(xlabel)
     ax.legend()
+    if ylim is not None:
+        ax.set_ylim(ylim)
 
     plt.show()
 
