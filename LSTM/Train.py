@@ -5,25 +5,24 @@ import pickle
 
 # Prepare the data
 # *************************************************************************
-file_path = '../new_data.csv'
+file_path = '../new_data_0102.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
-n_input, n_output = 24, 6
+n_input, n_output = 24, 12
+
+sc = MinMaxScaler(feature_range=(0, 1))
 data = GSDataProcessor(
     file_path,
     feature_names=features_name,
     test_size=0.2,
-    start_month=8,
-    start_day=18,
-    end_month=11,
-    end_day=11,
     hour_range=(8, 20),
     group_freq=5,
     n_input=n_input,
-    n_output=n_output)
+    n_output=n_output,
+    scaler=sc)
 
 # Build the model
 # *************************************************************************
-model_index = 2
+model_index = 1
 epochs = 70
 batch_size = 32
 
@@ -43,6 +42,11 @@ history = baseline[1]
 # *************************************************************************
 with open('models/model_lstm_{}.pkl'.format(model_index), 'wb') as f:
     pickle.dump(model, f)
+
+# Save scaler
+# *************************************************************************
+# with open('scalers/scaler.pkl', 'wb') as s:
+#     pickle.dump(sc, s)
 
 # Check metrics
 # *************************************************************************

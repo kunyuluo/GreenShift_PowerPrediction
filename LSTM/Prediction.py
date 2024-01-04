@@ -1,84 +1,92 @@
 import pickle
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 from Helper import GSDataProcessor, PredictAndForecast, Evaluate, plot_results, plot_sample_results
+from Helper import inverse_transform_prediction, scale_data
 
 
 # Load the model
 # *************************************************************************
-model_index = 2
+model_index = 1
 with open('models/model_lstm_{}.pkl'.format(model_index), 'rb') as f:
     model = pickle.load(f)
 
+# Load the scaler
+# *************************************************************************
+# with open('scalers/scaler.pkl', 'rb') as s:
+#     scaler = pickle.load(f)
+
 # Prepare the data
 # *************************************************************************
-file_path = '../new_data.csv'
+file_path = '../new_data_0102.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
-n_input, n_output = 24, 6
+n_input, n_output = 24, 12
+
+sc = MinMaxScaler(feature_range=(0, 1))
 data = GSDataProcessor(
     file_path,
     feature_names=features_name,
     test_size=0.2,
-    start_month=8,
-    start_day=18,
-    end_month=11,
-    end_day=11,
     hour_range=(8, 20),
     group_freq=5,
     n_input=n_input,
-    n_output=n_output)
+    n_output=n_output,
+    scaler=sc)
 
 train = data.train
 test = data.test
 # test = test.reshape(test.shape[0] * test.shape[1], test.shape[2])
 # print(test)
 
-
 # delta = -0.5
+# constant = scale_data(46, (41, 49))
 # for item_1d in train:
 #     for item_2d in item_1d:
 #         # item_2d[3] = item_2d[3] + delta
-#         item_2d[3] = 46.5
+#         item_2d[3] = constant
 #
 # for item_1d in test:
 #     for item_2d in item_1d:
 #         # item_2d[3] = item_2d[3] + delta
-#         item_2d[3] = 46.5
+#         item_2d[3] = constant
 
 # Predict for the entire test set:
 # *************************************************************************
-# prediction = PredictAndForecast(model, train, test, n_input=n_input, n_output=n_output)
+prediction = PredictAndForecast(model, train, test, n_input=n_input, n_output=n_output)
 # predict_values = prediction.get_predictions()
+# actual_values = prediction.updated_test()
+# predict_values = inverse_transform_prediction(prediction.get_predictions(), len(features_name), sc)
+# actual_values = sc.inverse_transform(prediction.updated_test())
 
 # Walk-Forward Predict for certain length of step:
 # *************************************************************************
-# predict_values = prediction.walk_forward_validation(100, 100)
-# print(predict_values[0])
-# print(predict_values[1])
+walk_forward = prediction.walk_forward_validation(24, 1250)
+predict_values = inverse_transform_prediction(walk_forward[0], len(features_name), sc)
+actual_values = inverse_transform_prediction(walk_forward[1], len(features_name), sc)
 
 # values = predict_values.reshape(len(predict_values))
 # df = pd.DataFrame(values)
-# df.to_csv('prediction_test_cons.csv')
+# df.to_csv('trend_test_0104_46.csv')
 
 # Predict for one sample from the test set:
 # *************************************************************************
-sample_index = 760
-prediction = PredictAndForecast(model, data.train, data.test, n_input=n_input, n_output=n_output)
-predict_values = prediction.get_sample_prediction(sample_index)[0]
-actual_values = prediction.get_sample_prediction(sample_index)[1]
-print(predict_values)
-print(actual_values)
+# sample_index = 760
+# prediction = PredictAndForecast(model, data.train, data.test, n_input=n_input, n_output=n_output)
+# predict_values = prediction.get_sample_prediction(sample_index)[0]
+# actual_values = prediction.get_sample_prediction(sample_index)[1]
+# print(predict_values)
+# print(actual_values)
 
 # Evaluate the prediction
 # *************************************************************************
-# evals = Evaluate(prediction.updated_test(), predict_values)
-# # evals = Evaluate(predict_values[1], predict_values[0])
-# print('LSTM Model\'s mape is: {}%'.format(round(evals.mape*100, 1)))
-# print('LSTM Model\'s var ratio is: {}%'.format(round(evals.var_ratio*100, 1)))
+evals = Evaluate(actual_values, predict_values)
+print('LSTM Model\'s mape is: {}%'.format(round(evals.mape*100, 1)))
+print('LSTM Model\'s var ratio is: {}%'.format(round(evals.var_ratio*100, 1)))
 
 # Visualize the results
 # *************************************************************************
-# plot_results(prediction.updated_test(), predict_values)
-# plot_results(predict_values[1], predict_values[0], ylim=(0, 250))
-plot_sample_results(actual_values, predict_values)
+# plot_results(actual_values, predict_values)
+plot_results(actual_values, predict_values, ylim=(0, 150))
+# plot_sample_results(actual_values, predict_values)
 

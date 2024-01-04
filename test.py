@@ -4,11 +4,13 @@ import datetime as dt
 from matplotlib import pyplot as plt
 from Helper import DefaultValueFiller
 from Helper import GSDataProcessor
+from Helper import inverse_transform_prediction, scale_data
 from sklearn.preprocessing import MinMaxScaler
 
 # Load data
 # *******************************************************************************
-# data = pd.read_csv('gs_real_time_data.csv', low_memory=False)
+# data = pd.read_csv('gs_real_time_data_new.csv', low_memory=False)
+# print(data)
 
 # Time zone transfer from UTC to local ('US/Eastern)
 # *******************************************************************************
@@ -21,71 +23,55 @@ from sklearn.preprocessing import MinMaxScaler
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
 
 # filler = DefaultValueFiller(data, features_name)
+# feature_data = filler.get_feature_data()
 # new_df = filler.fill_missing_value()
 # print(new_df)
-# new_df.to_csv('new_data.csv', index=False)
+# new_df.to_csv('new_data_0102.csv', index=False)
 
 # power_data = pd.concat([date_local, data[features_name]], axis=1)
 # power_data['weekday'] = power_data['data_time'].dt.weekday
 # print(power_data)
 
+sc = MinMaxScaler(feature_range=(0, 1))
+
 target_data = GSDataProcessor(
-    'new_data.csv',
+    'new_data_0102.csv',
     feature_names=features_name,
-    start_month=8,
-    start_day=18,
-    end_month=11,
-    end_day=11,
+    # start_date=(2023, 12, 31),
+    # end_date=(2024, 1, 2),
     hour_range=(8, 20),
     group_freq=5,
-    n_input=24,
-    n_output=6)
+    n_input=6,
+    n_output=6,)
+    # scaler=sc)
 
-# df = target_data.get_period_data()
-# print(df)
-
+# period_data = target_data.get_period_data()
+# print(period_data)
+#
 train = target_data.train
 train = train.reshape(train.shape[0] * train.shape[1], train.shape[2])
 test = target_data.test
 test = test.reshape(test.shape[0] * test.shape[1], test.shape[2])
-
-# spt = test[:, 3]
+# print(test)
+# spt = train[:, 3]
+# spt = sc.fit_transform(spt.reshape(-1, 1))
 # print(spt)
-df = pd.DataFrame(test)
-df.to_csv('test_trimmed.csv')
-# n_input = 7
-# n_output = 1
-# start_point = 0
-# pred_length = 10
-#
-# test_remainder = test.shape[0] % n_output
-# if test_remainder != 0:
-#     test = test[:-test_remainder]
-# else:
-#     test = test
-#
-# history = [x for x in train[-n_input:, :]]
-# history.extend(test)
+print(scale_data(44, (41, 49)))
+# df = pd.DataFrame(spt)
+# df.to_csv('spt.csv')
 
-# x_input = np.array(history[0:7])
-# x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
-# print(x_input)
-# print(x_input.shape)
-
-# if start_point < len(test) - pred_length:
-#     start_point = start_point
-# else:
-#     start_point = len(test) - pred_length
-#
-# inputs = np.array(history[start_point:start_point + n_input])
-
-# x_input = inputs[-7:]
-# print(inputs)
-# print(x_input)
-# print(type(x_input))
-
-# arr1 = np.array([[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6], [4, 5, 6, 7]])
+# arr1 = np.array([[60, 2, 3, 44], [70, 3, 4, 46], [80, 4, 5, 48], [100, 5, 6, 44]])
+# df = pd.DataFrame(arr1)
+# print(df)
 # arr2 = np.array([[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6], [4, 5, 6, 7]])
+# data = sc.fit_transform(df)
+# print(data)
+# test = np.array([[0.333, 0, 0, 0], [0.333, 0, 0, 0]])
+# test = sc.inverse_transform(test)
+# test = np.array([0.333333, 0.333333])
+# test = inverse_transform_prediction(test, len(features_name), sc)
+# print(test)
+
 # new_values = np.array([20, 30, 40, 50])
 # new_values = new_values.reshape(new_values.shape[0], 1)
 
@@ -109,8 +95,8 @@ df.to_csv('test_trimmed.csv')
 
 # Plot the selected data
 # *******************************************************************************
-# GSDataProcessor.plot_variable(power_period, 'cp_power', True)
-# GSDataProcessor.plot_variable_no_time(power_period, 'cp_power')
+# GSDataProcessor.plot_variable(period_data, 'cp_power', False)
+# GSDataProcessor.plot_variable_no_time(period_data, 'downstream_chwsstpt', y_limit=(40, 50))
 # GSDataProcessor.check_data_distribution(data, 'downstream_chwsstpt')
-# GSDataProcessor.check_linearity(preview_data, 'cp_power', 'oat', True)
+# GSDataProcessor.check_linearity(period_data, 'cp_power', 'downstream_chwsstpt', True)
 # GSDataProcessor.check_autocorrelation(data, 'cp_power')

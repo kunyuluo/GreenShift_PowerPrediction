@@ -32,7 +32,7 @@ class DefaultValueFiller:
         self.feature_names = feature_names
         self.datetime_column = 'data_time'
         self.feature_data = self.get_feature_data()
-        self.new_dataset = self.fill_missing_value()
+        # self.new_dataset = self.fill_missing_value()
 
     def transfer_time_zone(self, column: str = 'data_time'):
         self.df['data_time'] = pd.to_datetime(self.df[column])
@@ -55,33 +55,57 @@ class DefaultValueFiller:
 
     def fill_missing_value(self):
 
+        data = self.get_feature_data()
         # Construct new dataframe without missing value for each timestep
         # *******************************************************************************
         datetimes = []
-        dt_min = self.feature_data['data_time'].min()
-        dt_max = self.feature_data['data_time'].max()
+        dt_min = data['data_time'].min()
+        dt_max = data['data_time'].max()
         year_range = range(dt_min.year, dt_max.year + 1)
-        month_range = range(dt_min.month, dt_max.month + 1)
-        start_day, end_day = dt_min.day, dt_max.day
+
+        months_range = {}
+        days_range = {}
+        for year in year_range:
+            month_min = data[data['data_time'].dt.year == year]['data_time'].dt.month.min()
+            month_max = data[data['data_time'].dt.year == year]['data_time'].dt.month.max()
+            day_min = data[(data['data_time'].dt.year == year) &
+                           (data['data_time'].dt.month == month_min)]['data_time'].dt.day.min()
+            day_max = data[(data['data_time'].dt.year == year) &
+                           (data['data_time'].dt.month == month_max)]['data_time'].dt.day.max()
+            months_range[year] = range(month_min, month_max + 1)
+            days_range[year] = (day_min, day_max)
+
+        # start_day, end_day = dt_min.day, dt_max.day
         num_days_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
         for year in year_range:
-            for i, month in enumerate(month_range):
-                if i == 0:
-                    for day in range(start_day, num_days_month[month - 1] + 1):
-                        for hour in range(24):
-                            for minute in range(60):
-                                datetimes.append(dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
-                elif i == len(month_range) - 1:
-                    for day in range(1, end_day + 1):
-                        for hour in range(24):
-                            for minute in range(60):
-                                datetimes.append(dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
-                else:
-                    for day in range(1, num_days_month[i] + 1):
-                        for hour in range(24):
-                            for minute in range(60):
-                                datetimes.append(dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
+            month_range = months_range[year]
+            if len(months_range[year]) == 1:
+                for day in range(1, days_range[year][1] + 1):
+                    for hour in range(24):
+                        for minute in range(60):
+                            datetimes.append(
+                                dt.datetime(year=year, month=month_range[0], day=day, hour=hour, minute=minute))
+            else:
+                for i, month in enumerate(month_range):
+                    if i == 0:
+                        for day in range(days_range[year][0], num_days_month[month - 1] + 1):
+                            for hour in range(24):
+                                for minute in range(60):
+                                    datetimes.append(
+                                        dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
+                    elif i == len(month_range) - 1:
+                        for day in range(1, days_range[year][1] + 1):
+                            for hour in range(24):
+                                for minute in range(60):
+                                    datetimes.append(
+                                        dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
+                    else:
+                        for day in range(1, num_days_month[i] + 1):
+                            for hour in range(24):
+                                for minute in range(60):
+                                    datetimes.append(
+                                        dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
 
         new_df = pd.DataFrame(pd.to_datetime(datetimes), columns=['data_time'])
         new_df['weekday'] = new_df['data_time'].dt.weekday
@@ -121,7 +145,7 @@ class DefaultValueFiller:
                     data[i] = data[i + 1]
                 else:
                     data[i] = data[i - 1]
-            elif data[i] != 0 and data[i-1] != 0 and 1 - (data[i] / data[i-1]) > 0.8:
+            elif data[i] != 0 and data[i - 1] != 0 and 1 - (data[i] / data[i - 1]) > 0.8:
                 data[i] = data[i - 1] * 0.5
             else:
                 pass
@@ -170,17 +194,16 @@ class GSDataProcessor:
                  file_path: str,
                  df: pd.DataFrame = None,
                  feature_names=None,
-                 start_month: int = None,
-                 start_day: int = None,
-                 end_month: int = None,
-                 end_day: int = None,
+                 start_date: tuple = None,
+                 end_date: tuple = None,
                  hour_range: tuple = None,
                  group_freq: int = None,
                  test_size: float = 0.2,
                  n_input: int = 5,
                  n_output: int = 5,
                  time_zone_transfer: bool = False,
-                 date_column: str = 'data_time'):
+                 date_column: str = 'data_time',
+                 scaler=None):
 
         feature_names = [] if feature_names is None else feature_names
 
@@ -190,10 +213,8 @@ class GSDataProcessor:
 
         self.df = data
         self.feature_names = feature_names
-        self.start_month = start_month
-        self.start_day = start_day
-        self.end_month = end_month
-        self.end_day = end_day
+        self.start_date = start_date
+        self.end_date = end_date
         self.hour_range = hour_range
         self.group_freq = group_freq
         self.test_size = test_size
@@ -201,6 +222,7 @@ class GSDataProcessor:
         self.n_output = n_output
         self.time_zone_transfer = time_zone_transfer
         self.date_column = date_column
+        self.scaler = scaler
         self.num_features = num_features
         self.train, self.test = self.get_train_test()
         self.X_train, self.y_train = self.to_supervised(self.train)
@@ -281,13 +303,11 @@ class GSDataProcessor:
 
         # Get data for specified period
         # *******************************************************************************
-        if (self.start_month is not None and
-                self.start_day is not None and
-                self.end_month is not None and
-                self.end_day is not None):
+        if self.start_date is not None and len(self.start_date) == 3:
             target_period = self.select_by_date(
-                target_data, start_month=self.start_month, start_day=self.start_day,
-                end_month=self.end_month, end_day=self.end_day)
+                target_data, start_year=self.start_date[0], end_year=self.end_date[0],
+                start_month=self.start_date[1], start_day=self.start_date[2],
+                end_month=self.end_date[1], end_day=self.end_date[2])
         else:
             target_period = target_data
 
@@ -320,6 +340,14 @@ class GSDataProcessor:
         Split data into train and test sets.
         """
         data = self.get_period_data()
+        # print(data.index)
+
+        if self.scaler is not None:
+            index = data.index
+            column_names = data.columns
+            data = self.scaler.fit_transform(data)
+            data = pd.DataFrame(data, index=index, columns=column_names)
+            # print(data.head(30))
 
         if len(data) != 0:
             train_idx = round(len(data) * (1 - self.test_size))
@@ -335,6 +363,7 @@ class GSDataProcessor:
 
         train_remainder = train.shape[0] % self.n_input
         test_remainder = test.shape[0] % self.n_input
+        # print(train_remainder, test_remainder)
 
         if train_remainder != 0 and test_remainder != 0:
             # train = train[0: train.shape[0] - train_remainder]
@@ -459,13 +488,16 @@ class GSDataProcessor:
         plt.show()
 
     @staticmethod
-    def plot_variable_no_time(df: pd.DataFrame, var_name: str = 'cp_power'):
+    def plot_variable_no_time(df: pd.DataFrame, var_name: str = 'cp_power', y_limit: tuple = None):
         fig = plt.figure(figsize=(15, 6))
         ax = fig.add_subplot()
 
         x = range(len(df[var_name]))
         ax.plot(x, df[var_name], color='black')
-        ax.set_ylim(0, )
+        if y_limit is not None:
+            ax.set_ylim(y_limit)
+        else:
+            ax.set_ylim(0, )
 
         plt.show()
 
@@ -566,16 +598,16 @@ class PredictAndForecast:
         history = [x for x in self.train[-self.n_input:, :]]
         history.extend(test)
 
-        if index < len(test)-self.n_output:
+        if index < len(test) - self.n_output:
             index = index
         else:
-            index = len(test)-self.n_output
+            index = len(test) - self.n_output
 
-        x_input = np.array(history[index:index+self.n_input])
+        x_input = np.array(history[index:index + self.n_input])
         x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
         # print(x_input)
         yhat_sequence = self.forcast(x_input)
-        actual = test[index:index+self.n_output, 0]
+        actual = test[index:index + self.n_output, 0]
 
         return np.array(yhat_sequence), actual
 
@@ -592,10 +624,10 @@ class PredictAndForecast:
         history = [x for x in self.train[-self.n_input:, :]]
         history.extend(test)
 
-        if start_point < len(test)-pred_length:
+        if start_point < len(test) - pred_length:
             start_point = start_point
         else:
-            start_point = len(test)-pred_length
+            start_point = len(test) - pred_length
 
         inputs = np.array(history[start_point:start_point + self.n_input])
         predictions = []
@@ -659,6 +691,8 @@ class Evaluate:
         """
         Calculates the variance ratio of the predictions
         """
+        # print(np.var(self.predictions))
+        # print(np.var(self.actual))
         return abs(1 - (np.var(self.predictions)) / np.var(self.actual))
 
     def evaluate_model_with_mape(self) -> float:
@@ -747,3 +781,23 @@ def plot_sample_results(test, preds):
     plt.legend()
     plt.ylim(0, 200)
     plt.show()
+
+
+def inverse_transform_prediction(values, feature_num: int, scaler):
+    values = values.flatten()
+
+    dim = values.shape[0]
+    dummy_array = np.zeros([dim, feature_num])
+    for i in range(dim):
+        np.put(dummy_array[i], 0, values[i])
+
+    unscaled = scaler.inverse_transform(dummy_array)
+    unscaled = unscaled[:, 0]
+    unscaled = unscaled.reshape((unscaled.shape[0], 1))
+
+    return unscaled
+
+
+def scale_data(value, value_range=(0, 1), scaled_range=(0, 1)):
+    ratio = (value - value_range[0]) / (value_range[1] - value_range[0])
+    return ratio * (scaled_range[1] - scaled_range[0]) + scaled_range[0]
