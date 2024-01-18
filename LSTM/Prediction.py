@@ -21,14 +21,14 @@ with open('models/model_lstm_{}.pkl'.format(model_index), 'rb') as f:
 # *************************************************************************
 file_path = '../new_data_0102.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
-n_input, n_output = 24, 12
+n_input, n_output = 6, 6
 
 sc = MinMaxScaler(feature_range=(0, 1))
 data = GSDataProcessor(
     file_path,
     feature_names=features_name,
     test_size=0.2,
-    hour_range=(8, 20),
+    hour_range=(6, 20),
     group_freq=5,
     n_input=n_input,
     n_output=n_output,
@@ -56,14 +56,14 @@ test = data.test
 prediction = PredictAndForecast(model, train, test, n_input=n_input, n_output=n_output)
 # predict_values = prediction.get_predictions()
 # actual_values = prediction.updated_test()
-# predict_values = inverse_transform_prediction(prediction.get_predictions(), len(features_name), sc)
-# actual_values = sc.inverse_transform(prediction.updated_test())
+predict_values = inverse_transform_prediction(prediction.get_predictions(), len(features_name), sc)
+actual_values = sc.inverse_transform(prediction.updated_test())
 
 # Walk-Forward Predict for certain length of step:
 # *************************************************************************
-walk_forward = prediction.walk_forward_validation(24, 1250)
-predict_values = inverse_transform_prediction(walk_forward[0], len(features_name), sc)
-actual_values = inverse_transform_prediction(walk_forward[1], len(features_name), sc)
+# walk_forward = prediction.walk_forward_validation(8, 250)
+# predict_values = inverse_transform_prediction(walk_forward[0], len(features_name), sc)
+# actual_values = inverse_transform_prediction(walk_forward[1], len(features_name), sc)
 
 # values = predict_values.reshape(len(predict_values))
 # df = pd.DataFrame(values)
@@ -71,10 +71,10 @@ actual_values = inverse_transform_prediction(walk_forward[1], len(features_name)
 
 # Predict for one sample from the test set:
 # *************************************************************************
-# sample_index = 760
-# prediction = PredictAndForecast(model, data.train, data.test, n_input=n_input, n_output=n_output)
-# predict_values = prediction.get_sample_prediction(sample_index)[0]
-# actual_values = prediction.get_sample_prediction(sample_index)[1]
+# sample_index = 521
+# # prediction = PredictAndForecast(model, data.train, data.test, n_input=n_input, n_output=n_output)
+# predict_values = inverse_transform_prediction(prediction.get_sample_prediction(sample_index)[0], len(features_name), sc)
+# actual_values = inverse_transform_prediction(prediction.get_sample_prediction(sample_index)[1], len(features_name), sc)
 # print(predict_values)
 # print(actual_values)
 
@@ -87,6 +87,6 @@ print('LSTM Model\'s var ratio is: {}%'.format(round(evals.var_ratio*100, 1)))
 # Visualize the results
 # *************************************************************************
 # plot_results(actual_values, predict_values)
-plot_results(actual_values, predict_values, ylim=(0, 150))
+plot_results(actual_values, predict_values, ylim=(0, 180))
 # plot_sample_results(actual_values, predict_values)
 

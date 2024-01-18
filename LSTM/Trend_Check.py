@@ -2,7 +2,8 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 
-data = pd.read_csv('trend_test_0104.csv')
+data = pd.read_csv('prediction_test.csv')
+# data = pd.read_csv('trend_test_0104.csv')
 
 spt = 46
 power_delta = 'power_delta_{}'.format(str(spt))

@@ -9,15 +9,15 @@ from Helper import GSDataProcessor
 
 def build_lstm_1(dataset: GSDataProcessor, epochs=25, batch_size=32):
     """
-      Builds, compiles, and fits our Uni_LSTM baseline model.
+      Builds, compiles, and fits our Multivariate_LSTM baseline model.
     """
 
     n_timesteps, n_features, n_outputs = dataset.X_train.shape[1], dataset.X_train.shape[2], dataset.y_train.shape[1]
     callbacks = [tf.keras.callbacks.EarlyStopping(patience=40, restore_best_weights=True)]
-    opt = Adam(learning_rate=0.001)
+    opt = Adam(learning_rate=0.0001)
     model = Sequential()
     model.add(LSTM(350, input_shape=(n_timesteps, n_features)))
-    model.add(Dense(100))
+    model.add(Dense(64))
     model.add(Dense(n_outputs))
 
     print("compliling baseline model")
@@ -32,16 +32,16 @@ def build_lstm_1(dataset: GSDataProcessor, epochs=25, batch_size=32):
 
 def build_lstm_2(dataset: GSDataProcessor, epochs=25, batch_size=32):
     """
-    Builds, compiles, and fits our Uni_LSTM baseline model.
+    Builds, compiles, and fits our Multivariate_LSTM baseline model.
     """
     n_timesteps, n_features, n_outputs = dataset.X_train.shape[1], dataset.X_train.shape[2], dataset.y_train.shape[1]
     callbacks = [tf.keras.callbacks.EarlyStopping(patience=40, restore_best_weights=True)]
     opt = Adam(learning_rate=0.0001)
     model = Sequential()
-    model.add(LSTM(200, return_sequences=True, input_shape=(n_timesteps, n_features)))
-    model.add(LSTM(150, return_sequences=True))
-    model.add(LSTM(100))
-    model.add(Dense(64))
+    model.add(LSTM(128, return_sequences=True, input_shape=(n_timesteps, n_features)))
+    # model.add(LSTM(100, return_sequences=True))
+    model.add(LSTM(64))
+    model.add(Dense(32))
     model.add(Dense(n_outputs))
 
     print('compiling baseline model...')
@@ -56,7 +56,7 @@ def build_lstm_2(dataset: GSDataProcessor, epochs=25, batch_size=32):
 
 def build_lstm_3(dataset: GSDataProcessor, epochs=25, batch_size=32):
     """
-    Builds, compiles, and fits our Uni_LSTM baseline model.
+    Builds, compiles, and fits our Multivariate_LSTM baseline model.
     """
     n_timesteps, n_features, n_outputs = dataset.X_train.shape[1], dataset.X_train.shape[2], dataset.y_train.shape[1]
     callbacks = [tf.keras.callbacks.EarlyStopping(patience=40, restore_best_weights=True)]

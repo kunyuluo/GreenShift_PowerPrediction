@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.preprocessing import MinMaxScaler
+from darts import TimeSeries
 
 
 def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
@@ -500,6 +501,217 @@ class GSDataProcessor:
             ax.set_ylim(0, )
 
         plt.show()
+
+
+class DataPreprocessorTiDE:
+    def __init__(self,
+                 file_path: str,
+                 df: pd.DataFrame = None,
+                 target_names=None,
+                 dynamic_cov_names=None,
+                 static_cov_names=None,
+                 start_date: tuple = None,
+                 end_date: tuple = None,
+                 hour_range: tuple = None,
+                 group_freq: int = None,
+                 test_size: float = 0.2,
+                 val_size: float = 0.05,
+                 time_zone_transfer: bool = False,
+                 date_column: str = 'data_time',
+                 scaler=None):
+
+        target_names = [] if target_names is None else target_names
+        dynamic_cov_names = [] if dynamic_cov_names is None else dynamic_cov_names
+        static_cov_names = [] if static_cov_names is None else static_cov_names
+
+        data = df if df is not None else pd.read_csv(file_path, low_memory=False)
+
+        self.df = data
+        self.target_names = target_names
+        self.dynamic_cov_names = dynamic_cov_names
+        self.static_cov_names = static_cov_names
+        self.start_date = start_date
+        self.end_date = end_date
+        self.hour_range = hour_range
+        self.group_freq = group_freq
+        self.time_zone_transfer = time_zone_transfer
+        self.date_column = date_column
+        self.scaler = scaler
+        self.all_features = target_names + dynamic_cov_names + static_cov_names
+        self.data = self.get_period_data()
+
+        self.train_idx = round(len(self.data) * (1 - test_size))
+        self.val_idx = round(len(self.data) * (1 - val_size)) if val_size < 1 else len(data) - val_size
+
+    def format_date(self):
+        self.df['data_time'] = pd.to_datetime(self.df[self.date_column])
+        df_local = self.df['data_time'].dt.tz_localize(None).dt.floor('min')
+
+        return df_local
+
+    def transfer_time_zone(self):
+        self.df['data_time'] = pd.to_datetime(self.df[self.date_column])
+        df_utc = self.df['data_time'].dt.tz_localize('UTC')
+        df_local = df_utc.dt.tz_convert(pytz.timezone('US/Eastern')).dt.tz_localize(None).dt.floor('min')
+        # self.df['data_time'] = df_local
+        # df_utc = df_utc.dt.tz_localize(None)
+
+        return df_local
+
+    def select_by_date(
+            self,
+            df: pd.DataFrame,
+            start_year: int = dt.date.today().year,
+            end_year: int = dt.date.today().year,
+            start_month: int = None,
+            start_day: int = None,
+            end_month: int = None,
+            end_day: int = None):
+
+        # year = dt.date.today().year
+        # date_start = dt.date(year, start_month, start_day)
+        # date_end = dt.date(year, end_month, end_day)
+        # days = (date_end - date_start).days + 1
+        if (start_month is not None and
+                end_month is not None and
+                start_day is not None and
+                end_day is not None):
+
+            start = pd.to_datetime(dt.datetime(start_year, start_month, start_day))
+            end = pd.to_datetime(dt.datetime(end_year, end_month, end_day))
+
+            df_selected = df[(df[self.date_column] >= start) & (df[self.date_column] < end)]
+
+            # df_selected.set_index('data_time', inplace=True)
+
+            return df_selected
+
+    def select_by_time(self, df: pd.DataFrame, start_hour: int = 8, end_hour: int = 22):
+        df_selected = df[
+            (df[self.date_column].dt.hour >= start_hour) &
+            (df[self.date_column].dt.hour < end_hour)]
+
+        return df_selected
+
+    def get_period_data(self):
+        # Time zone transfer from UTC to local ('US/Eastern)
+        # *******************************************************************************
+        if self.time_zone_transfer:
+            date_local = self.transfer_time_zone()
+        else:
+            date_local = self.format_date()
+
+        # Get data from specific column
+        # *******************************************************************************
+        if len(self.all_features) != 0:
+            target_data = pd.concat([date_local, self.df[self.all_features]], axis=1)
+        else:
+            feature_df = self.df.drop([self.date_column], axis=1)
+            target_data = pd.concat([date_local, feature_df], axis=1)
+
+        # Get data for specified period
+        # *******************************************************************************
+        if self.start_date is not None and len(self.start_date) == 3:
+            target_period = self.select_by_date(
+                target_data, start_year=self.start_date[0], end_year=self.end_date[0],
+                start_month=self.start_date[1], start_day=self.start_date[2],
+                end_month=self.end_date[1], end_day=self.end_date[2])
+        else:
+            target_period = target_data
+
+        if self.hour_range is not None:
+            target_period = self.select_by_time(target_period, self.hour_range[0], self.hour_range[1])
+        else:
+            target_period = target_period
+
+        target_period.set_index(self.date_column, inplace=True)
+
+        if self.group_freq is not None:
+            target_period = target_period.groupby(pd.Grouper(freq=f'{self.group_freq}min')).mean()
+
+        target_period = target_period.dropna()
+        # target_period = target_period.reset_index()
+        # print(target_period)
+
+        if self.scaler is not None:
+            index = target_period.index
+            column_names = target_period.columns
+            target_period = self.scaler.fit_transform(target_period)
+            target_period = pd.DataFrame(target_period, index=index, columns=column_names)
+
+        return target_period
+
+    def split_data(self):
+        """
+        Split data into train, test, and validation sets.
+        """
+
+        if len(self.data) != 0:
+            train = self.data[:self.train_idx]
+            test = self.data[self.train_idx: self.val_idx]
+            val = self.data[-self.val_idx:]
+
+            return train, test, val
+        else:
+            raise Exception('Data set is empty, cannot split.')
+
+    def train_series(self):
+        # data = self.get_period_data()
+        train, test, val = self.split_data()
+
+        train_target = TimeSeries.from_dataframe(
+            train[self.target_names], fill_missing_dates=True, fillna_value=0.0)
+        train_past_covs = TimeSeries.from_dataframe(
+            train[self.dynamic_cov_names], fill_missing_dates=True, fillna_value=0.0)
+
+        return train_target, train_past_covs
+
+    def test_series(self):
+        # data = self.get_period_data()
+        train, test, val = self.split_data()
+
+        test_target = TimeSeries.from_dataframe(
+            test[self.target_names], fill_missing_dates=True, fillna_value=0.0)
+        test_past_covs = TimeSeries.from_dataframe(
+            test[self.dynamic_cov_names], fill_missing_dates=True, fillna_value=0.0)
+
+        return test_target, test_past_covs
+
+    def val_series(self):
+        # data = self.get_period_data()
+        train, test, val = self.split_data()
+
+        val_target = TimeSeries.from_dataframe(
+            val[self.target_names], fill_missing_dates=True, fillna_value=0.0)
+        val_past_covs = TimeSeries.from_dataframe(
+            val[self.dynamic_cov_names], fill_missing_dates=True, fillna_value=0.0)
+
+        return val_target, val_past_covs
+
+    def future_series(self, cov_names, n_extend):
+        """
+        Build future covariates for the given features
+
+        Span of future covariate:
+        with n <= output_chunk_length, at least the same time span as target plus the next output_chunk_length time steps after the end of target.
+        with n > output_chunk_length, at least the same time span as target plus the next n time steps after the end of target.
+        (source: https://github.com/unit8co/darts/blob/master/docs/userguide/covariates.md)
+        """
+        n_extend = n_extend if n_extend > 24 else 24
+        future_length = n_extend + self.train_idx
+
+        if isinstance(cov_names, str):
+            cov_names = [cov_names]
+            future_covs = self.data[cov_names]
+        elif isinstance(cov_names, list):
+            future_covs = self.data[cov_names]
+        else:
+            raise Exception('Invalid cov_names')
+
+        future_covs = future_covs[:future_length]
+        future_covs = TimeSeries.from_dataframe(future_covs, fill_missing_dates=True)
+
+        return future_covs
 
 
 class PredictAndForecast:

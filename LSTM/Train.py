@@ -7,14 +7,14 @@ import pickle
 # *************************************************************************
 file_path = '../new_data_0102.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
-n_input, n_output = 24, 12
+n_input, n_output = 6, 6
 
 sc = MinMaxScaler(feature_range=(0, 1))
 data = GSDataProcessor(
     file_path,
     feature_names=features_name,
     test_size=0.2,
-    hour_range=(8, 20),
+    hour_range=(6, 20),
     group_freq=5,
     n_input=n_input,
     n_output=n_output,

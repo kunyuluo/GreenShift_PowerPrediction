@@ -39,24 +39,25 @@ target_data = GSDataProcessor(
     feature_names=features_name,
     # start_date=(2023, 12, 31),
     # end_date=(2024, 1, 2),
-    hour_range=(8, 20),
-    group_freq=5,
+    hour_range=(6, 20),
+    group_freq=15,
     n_input=6,
     n_output=6,)
     # scaler=sc)
 
-# period_data = target_data.get_period_data()
+period_data = target_data.get_period_data()
 # print(period_data)
 #
 train = target_data.train
 train = train.reshape(train.shape[0] * train.shape[1], train.shape[2])
 test = target_data.test
 test = test.reshape(test.shape[0] * test.shape[1], test.shape[2])
-# print(test)
+print(test)
+# print(train.shape)
 # spt = train[:, 3]
 # spt = sc.fit_transform(spt.reshape(-1, 1))
 # print(spt)
-print(scale_data(44, (41, 49)))
+# print(scale_data(44, (41, 49)))
 # df = pd.DataFrame(spt)
 # df.to_csv('spt.csv')
 
@@ -96,7 +97,7 @@ print(scale_data(44, (41, 49)))
 # Plot the selected data
 # *******************************************************************************
 # GSDataProcessor.plot_variable(period_data, 'cp_power', False)
-# GSDataProcessor.plot_variable_no_time(period_data, 'downstream_chwsstpt', y_limit=(40, 50))
+GSDataProcessor.plot_variable_no_time(period_data, 'cp_power')
 # GSDataProcessor.check_data_distribution(data, 'downstream_chwsstpt')
 # GSDataProcessor.check_linearity(period_data, 'cp_power', 'downstream_chwsstpt', True)
 # GSDataProcessor.check_autocorrelation(data, 'cp_power')
