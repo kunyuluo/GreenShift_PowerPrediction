@@ -6,6 +6,7 @@ from Helper import DefaultValueFiller
 from Helper import GSDataProcessor
 from Helper import inverse_transform_prediction, scale_data
 from sklearn.preprocessing import MinMaxScaler
+from Visualization import VisualizeData
 
 # Load data
 # *******************************************************************************
@@ -26,7 +27,7 @@ features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
 # feature_data = filler.get_feature_data()
 # new_df = filler.fill_missing_value()
 # print(new_df)
-# new_df.to_csv('new_data_0102.csv', index=False)
+# new_df.to_csv('new_data_0123.csv', index=False)
 
 # power_data = pd.concat([date_local, data[features_name]], axis=1)
 # power_data['weekday'] = power_data['data_time'].dt.weekday
@@ -35,11 +36,11 @@ features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
 sc = MinMaxScaler(feature_range=(0, 1))
 
 target_data = GSDataProcessor(
-    'new_data_0102.csv',
+    'Data/new_data_0102.csv',
     feature_names=features_name,
-    # start_date=(2023, 12, 31),
-    # end_date=(2024, 1, 2),
-    hour_range=(6, 20),
+    start_date=(2023, 9, 18),
+    end_date=(2023, 9, 20),
+    # hour_range=(6, 20),
     group_freq=15,
     n_input=6,
     n_output=6,)
@@ -48,11 +49,11 @@ target_data = GSDataProcessor(
 period_data = target_data.get_period_data()
 # print(period_data)
 #
-train = target_data.train
-train = train.reshape(train.shape[0] * train.shape[1], train.shape[2])
-test = target_data.test
-test = test.reshape(test.shape[0] * test.shape[1], test.shape[2])
-print(test)
+# train = target_data.train
+# train = train.reshape(train.shape[0] * train.shape[1], train.shape[2])
+# test = target_data.test
+# test = test.reshape(test.shape[0] * test.shape[1], test.shape[2])
+# print(test)
 # print(train.shape)
 # spt = train[:, 3]
 # spt = sc.fit_transform(spt.reshape(-1, 1))
@@ -96,8 +97,8 @@ print(test)
 
 # Plot the selected data
 # *******************************************************************************
-# GSDataProcessor.plot_variable(period_data, 'cp_power', False)
-GSDataProcessor.plot_variable_no_time(period_data, 'cp_power')
-# GSDataProcessor.check_data_distribution(data, 'downstream_chwsstpt')
-# GSDataProcessor.check_linearity(period_data, 'cp_power', 'downstream_chwsstpt', True)
-# GSDataProcessor.check_autocorrelation(data, 'cp_power')
+# VisualizeData.plot_variable(period_data, 'cp_power', False)
+VisualizeData.plot_variable_no_time(period_data, 'cp_power')
+# VisualizeData.check_data_distribution(data, 'downstream_chwsstpt')
+# VisualizeData.check_linearity(period_data, 'cp_power', 'downstream_chwsstpt', True)
+# VisualizeData.check_autocorrelation(data, 'cp_power')

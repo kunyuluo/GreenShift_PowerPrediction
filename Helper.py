@@ -7,6 +7,8 @@ import matplotlib.dates as mdates
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.preprocessing import MinMaxScaler
 from darts import TimeSeries
+from darts.models import TiDEModel
+from Time_Features import TimeCovariates
 
 
 def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
@@ -148,6 +150,8 @@ class DefaultValueFiller:
                     data[i] = data[i - 1]
             elif data[i] != 0 and data[i - 1] != 0 and 1 - (data[i] / data[i - 1]) > 0.8:
                 data[i] = data[i - 1] * 0.5
+            elif data[i] != 0 and data[i + 1] != 0 and 1 - (data[i + 1] / data[i]) > 0.8:
+                data[i] = data[i + 1] * 0.5
             else:
                 pass
 
@@ -414,94 +418,6 @@ class GSDataProcessor:
                 in_start += 1
         return np.array(X), np.array(y)
 
-    @staticmethod
-    def check_data_distribution(df: pd.DataFrame, column_name: str = 'cp_power', log_transform: bool = False):
-        """
-        Check the distribution of the data.
-        """
-        data = df[column_name]
-
-        if log_transform:
-            data = np.log(data)
-
-        plt.hist(data, bins=20)
-        plt.title('Distribution of \'{}\''.format(column_name))
-        plt.xlabel(column_name)
-        plt.ylabel('Frequency')
-        plt.show()
-
-    @staticmethod
-    def check_linearity(
-            df: pd.DataFrame,
-            column_name_1: str,
-            column_name_2: str,
-            switch_table: bool = False,
-            log_transform: bool = False):
-        """
-        Check the linearity of the data.
-        """
-        data_1 = df[column_name_1]
-        data_2 = df[column_name_2]
-
-        if log_transform:
-            data_1 = np.log(data_1)
-            # data_2 = np.log(data_2)
-
-        x_label = column_name_1
-        y_label = column_name_2
-
-        if switch_table:
-            data_1, data_2 = data_2, data_1
-            x_label, y_label = y_label, x_label
-
-        plt.scatter(data_1, data_2, s=2)
-        plt.title('Linearity between \'{}\' and \'{}\''.format(column_name_1, column_name_2))
-        plt.xlabel(x_label)
-        plt.ylabel(y_label)
-        plt.show()
-
-    @staticmethod
-    def check_autocorrelation(df: pd.DataFrame, column_name: str = 'cp_power'):
-        """
-        Check the autocorrelation of the data.
-        """
-        data = df[column_name]
-
-        pd.plotting.lag_plot(data)
-        plt.show()
-
-    @staticmethod
-    def plot_variable(df: pd.DataFrame, var_name: str = 'cp_power', is_daily: bool = True):
-        fig = plt.figure(figsize=(15, 6))
-        ax = fig.add_subplot()
-
-        if is_daily:
-            ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:00'))
-        else:
-            ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-
-        # ax.xaxis.set_minor_locator(mdates.HourLocator(interval=1))
-        ax.plot(df.index, df[var_name], color='black')
-        ax.set_ylim(0, )
-
-        plt.show()
-
-    @staticmethod
-    def plot_variable_no_time(df: pd.DataFrame, var_name: str = 'cp_power', y_limit: tuple = None):
-        fig = plt.figure(figsize=(15, 6))
-        ax = fig.add_subplot()
-
-        x = range(len(df[var_name]))
-        ax.plot(x, df[var_name], color='black')
-        if y_limit is not None:
-            ax.set_ylim(y_limit)
-        else:
-            ax.set_ylim(0, )
-
-        plt.show()
-
 
 class DataPreprocessorTiDE:
     def __init__(self,
@@ -518,10 +434,16 @@ class DataPreprocessorTiDE:
                  val_size: float = 0.05,
                  time_zone_transfer: bool = False,
                  date_column: str = 'data_time',
+                 add_time_features: bool = False,
                  scaler=None):
 
         target_names = [] if target_names is None else target_names
         dynamic_cov_names = [] if dynamic_cov_names is None else dynamic_cov_names
+        # if dynamic_cov_names is None:
+        #     dynamic_cov_names = []
+        # else:
+        #     if add_time_features:
+        #         dynamic_cov_names = dynamic_cov_names +
         static_cov_names = [] if static_cov_names is None else static_cov_names
 
         data = df if df is not None else pd.read_csv(file_path, low_memory=False)
@@ -536,12 +458,17 @@ class DataPreprocessorTiDE:
         self.group_freq = group_freq
         self.time_zone_transfer = time_zone_transfer
         self.date_column = date_column
+        self.add_time_features = add_time_features
         self.scaler = scaler
         self.all_features = target_names + dynamic_cov_names + static_cov_names
-        self.data = self.get_period_data()
+
+        period_data = self.get_period_data()
+        self.data = period_data[0]
 
         self.train_idx = round(len(self.data) * (1 - test_size))
-        self.val_idx = round(len(self.data) * (1 - val_size)) if val_size < 1 else len(data) - val_size
+        self.val_idx = round(len(self.data) * (1 - val_size)) if val_size < 1 else len(self.data) - val_size
+
+        self.time_feature_names = period_data[1]
 
     def format_date(self):
         self.df['data_time'] = pd.to_datetime(self.df[self.date_column])
@@ -576,7 +503,6 @@ class DataPreprocessorTiDE:
                 end_month is not None and
                 start_day is not None and
                 end_day is not None):
-
             start = pd.to_datetime(dt.datetime(start_year, start_month, start_day))
             end = pd.to_datetime(dt.datetime(end_year, end_month, end_day))
 
@@ -600,7 +526,7 @@ class DataPreprocessorTiDE:
             date_local = self.transfer_time_zone()
         else:
             date_local = self.format_date()
-
+        # print(date_local)
         # Get data from specific column
         # *******************************************************************************
         if len(self.all_features) != 0:
@@ -639,30 +565,42 @@ class DataPreprocessorTiDE:
             target_period = self.scaler.fit_transform(target_period)
             target_period = pd.DataFrame(target_period, index=index, columns=column_names)
 
-        return target_period
+        time_feas = []
+
+        # Add time features as dynamic covariates if needed:
+        if self.add_time_features:
+            dti = target_period.index
+            time_covs = TimeCovariates(dti)
+            time_features = time_covs.get_covariates()
+            target_period = pd.concat([target_period, time_features], axis=1)
+
+            time_feas = time_covs.get_feature_names()
+
+        return target_period, time_feas
 
     def split_data(self):
         """
         Split data into train, test, and validation sets.
         """
-
         if len(self.data) != 0:
             train = self.data[:self.train_idx]
             test = self.data[self.train_idx: self.val_idx]
-            val = self.data[-self.val_idx:]
+            val = self.data[self.val_idx:]
 
             return train, test, val
         else:
             raise Exception('Data set is empty, cannot split.')
 
     def train_series(self):
-        # data = self.get_period_data()
+
         train, test, val = self.split_data()
 
+        past_cov_names = self.dynamic_cov_names + self.time_feature_names
+
         train_target = TimeSeries.from_dataframe(
-            train[self.target_names], fill_missing_dates=True, fillna_value=0.0)
+            train[self.target_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
         train_past_covs = TimeSeries.from_dataframe(
-            train[self.dynamic_cov_names], fill_missing_dates=True, fillna_value=0.0)
+            train[past_cov_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
 
         return train_target, train_past_covs
 
@@ -670,10 +608,12 @@ class DataPreprocessorTiDE:
         # data = self.get_period_data()
         train, test, val = self.split_data()
 
+        past_cov_names = self.dynamic_cov_names + self.time_feature_names
+
         test_target = TimeSeries.from_dataframe(
-            test[self.target_names], fill_missing_dates=True, fillna_value=0.0)
+            test[self.target_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
         test_past_covs = TimeSeries.from_dataframe(
-            test[self.dynamic_cov_names], fill_missing_dates=True, fillna_value=0.0)
+            test[past_cov_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
 
         return test_target, test_past_covs
 
@@ -681,10 +621,12 @@ class DataPreprocessorTiDE:
         # data = self.get_period_data()
         train, test, val = self.split_data()
 
+        past_cov_names = self.dynamic_cov_names + self.time_feature_names
+
         val_target = TimeSeries.from_dataframe(
-            val[self.target_names], fill_missing_dates=True, fillna_value=0.0)
+            val[self.target_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
         val_past_covs = TimeSeries.from_dataframe(
-            val[self.dynamic_cov_names], fill_missing_dates=True, fillna_value=0.0)
+            val[past_cov_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
 
         return val_target, val_past_covs
 
@@ -887,6 +829,74 @@ class PredictAndForecast:
         return np.array(predictions).reshape(-1, 1), np.array(actuals).reshape(-1, 1)
 
 
+class PredictAndForecastTiDE:
+    """
+        model: Darts TiDE Model
+        target: TimeSeries of features to be predicted
+        past_covs: TimeSeries of past covariates
+        future_covs: TimeSeries of future covariates
+
+    """
+
+    def __init__(
+            self,
+            model: TiDEModel,
+            input_chunk_length,
+            output_chunk_length,
+            target=None,
+            past_covs=None,
+            future_covs=None) -> None:
+
+        self.model = model
+        self.n_input = input_chunk_length
+        self.n_output = output_chunk_length
+        self.target = target
+        self.past_covs = past_covs
+        self.future_covs = future_covs
+
+    def forcast(self, series=None, past_covs=None, future_covs=None):
+        yhat = self.model.predict(
+            n=self.n_output, series=series, past_covariates=past_covs, future_covariates=future_covs)
+
+        # we only want the vector forecast
+        yhat = yhat.pd_dataframe().values
+        return yhat
+
+    # def get_predictions(self):
+    #     # history is a list of flattened test data + last observation from train data
+    #     test_remainder = self.test.shape[0] % self.n_output
+    #     if test_remainder != 0:
+    #         test = self.test[:-test_remainder]
+    #     else:
+    #         test = self.test
+    #
+    #     history = [x for x in self.train[-self.n_input:, :]]
+    #     history.extend(test)
+    #
+    #     step = round(len(history) / self.n_output)
+    #     # history = []
+    #
+    #     # walk-forward validation
+    #     predictions = []
+    #     window_start = 0
+    #     for i in range(step):
+    #
+    #         if window_start <= len(history) - self.n_input - self.n_output:
+    #             # print('pred no {}, window_start {}'.format(i+1, window_start))
+    #             x_input = np.array(history[window_start:window_start + self.n_input])
+    #             x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
+    #             yhat_sequence = self.forcast(x_input)
+    #             # print('pred no {}'.format(i))
+    #             # store the predictions
+    #             predictions.append(yhat_sequence)
+    #
+    #         window_start += self.n_output
+    #         # get real observation and add to history for predicting the next week
+    #         # history.append(self.test[i, :])
+    #
+    #     return np.array(predictions)
+
+
 class Evaluate:
     def __init__(self, actual, predictions) -> None:
         if actual.shape[1] > 1:
@@ -912,87 +922,6 @@ class Evaluate:
         Calculates the mean absolute percentage error
         """
         return mean_absolute_percentage_error(self.actual.flatten(), self.predictions.flatten())
-
-
-# class SampleForcast:
-#     def __init__(self, model, train, test, n_input=5, n_output=5):
-#         self.model = model
-#         self.train = train
-#         self.test = test
-#         self.n_input = n_input
-#         self.n_output = n_output
-#
-#     def get_sample(self, index=0):
-
-
-def plot_metrics(history, epochs: int = 25):
-    acc = history.history['mape']
-    val_acc = history.history['val_mape']
-
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
-
-    epochs_range = range(epochs)
-
-    plt.figure(figsize=(8, 8))
-    plt.subplot(1, 2, 1)
-    plt.plot(epochs_range, acc, label='Training MAPE')
-    plt.plot(epochs_range, val_acc, label='Validation MAPE')
-    plt.legend(loc='upper right')
-    # plt.ylim(0, 50)
-    plt.title('Training and Validation MAPE')
-
-    plt.subplot(1, 2, 2)
-    plt.plot(epochs_range, loss, label='Training Loss')
-    plt.plot(epochs_range, val_loss, label='Validation Loss')
-    plt.legend(loc='upper right')
-    # plt.ylim(0, 100)
-    plt.title('Training and Validation Loss')
-    plt.show()
-
-
-def plot_results(test, preds, title_suffix=None, xlabel='Power Prediction', ylim=None):
-    """
-    Plots training data in blue, actual values in red, and predictions in green, over time.
-    """
-    fig, ax = plt.subplots(figsize=(18, 6))
-    # x = df.Close[-498:].index
-    if test.shape[1] > 1:
-        test = test[:, 0]
-
-    plot_test = test[0:]
-    plot_preds = preds[0:]
-
-    # x = df[-(plot_test.shape[0] * plot_test.shape[1]):].index
-    # plot_test = plot_test.reshape((plot_test.shape[0] * plot_test.shape[1], 1))
-    plot_preds = plot_preds.reshape((plot_preds.shape[0] * plot_preds.shape[1], 1))
-
-    ax.plot(plot_test, label='actual')
-    ax.plot(plot_preds, label='preds')
-
-    if title_suffix is None:
-        ax.set_title('Predictions vs. Actual')
-    else:
-        ax.set_title(f'Predictions vs. Actual, {title_suffix}')
-
-    ax.set_xlabel('Date')
-    ax.set_ylabel(xlabel)
-    ax.legend()
-    if ylim is not None:
-        ax.set_ylim(ylim)
-
-    plt.show()
-
-
-def plot_sample_results(test, preds):
-    plt.plot(test, color='black', label='Actual')
-    plt.plot(preds, color='green', label='Predicted')
-    # plt.title('Power Prediction')
-    # plt.xlabel('Hour')
-    # plt.ylabel('kWh')
-    plt.legend()
-    plt.ylim(0, 200)
-    plt.show()
 
 
 def inverse_transform_prediction(values, feature_num: int, scaler):

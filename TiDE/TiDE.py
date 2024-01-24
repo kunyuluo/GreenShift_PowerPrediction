@@ -30,7 +30,7 @@ def build_tide_1(
         "gradient_clip_val": 1,
         "max_epochs": 200,
         "accelerator": "auto",
-        # "callbacks": [EarlyStopping(monitor="val_loss", patience=40, min_delta=0.001, verbose=True)],
+        "callbacks": [EarlyStopping(monitor="val_loss", patience=50, min_delta=0.001, verbose=True)],
     }
 
     # learning rate scheduler
@@ -58,16 +58,16 @@ def build_tide_1(
     # *************************************************************************
     model_tide = TiDEModel(**common_model_args, use_reversible_instance_norm=False)
 
-    # train_target_series, train_past_covs = dataset.train_series()
-    # test_target_series, test_past_covs = dataset.test_series()
-    # future_covs = dataset.future_series(cov_names, n_extend) if use_future_covs else None
-    #
-    # model_tide.fit(
-    #     series=train_target_series,
-    #     past_covariates=train_past_covs,
-    #     future_covariates=future_covs,
-    #     val_series=test_target_series,
-    #     val_past_covariates=test_past_covs,
-    #     verbose=False)
+    train_target_series, train_past_covs = dataset.train_series()
+    test_target_series, test_past_covs = dataset.test_series()
+    future_covs = dataset.future_series(cov_names, n_extend) if use_future_covs else None
+
+    model_tide.fit(
+        series=train_target_series,
+        past_covariates=train_past_covs,
+        future_covariates=future_covs,
+        val_series=test_target_series,
+        val_past_covariates=test_past_covs,
+        verbose=True)
 
     return model_tide

@@ -1,13 +1,14 @@
-from Helper import GSDataProcessor, plot_metrics
+from Helper import GSDataProcessor
+from Visualization import VisualizeData
 from LSTM import build_lstm_1, build_lstm_2, build_lstm_3, build_lstm_4
 from sklearn.preprocessing import MinMaxScaler
 import pickle
 
 # Prepare the data
 # *************************************************************************
-file_path = '../new_data_0102.csv'
+file_path = '../Data/new_data_0102.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
-n_input, n_output = 6, 6
+n_input, n_output = 24, 1
 
 sc = MinMaxScaler(feature_range=(0, 1))
 data = GSDataProcessor(
@@ -23,7 +24,7 @@ data = GSDataProcessor(
 # Build the model
 # *************************************************************************
 model_index = 1
-epochs = 70
+epochs = 30
 batch_size = 32
 
 if model_index == 1:
@@ -50,4 +51,4 @@ with open('models/model_lstm_{}.pkl'.format(model_index), 'wb') as f:
 
 # Check metrics
 # *************************************************************************
-plot_metrics(history, epochs=epochs)
+VisualizeData.plot_metrics(history, epochs=epochs)

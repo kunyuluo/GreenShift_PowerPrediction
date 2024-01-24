@@ -6,7 +6,7 @@ from TiDE import build_tide_1
 
 # Get data from specific column
 # *******************************************************************************
-file_path = '../new_data_0102.csv'
+file_path = '../Data/new_data_0102.csv'
 target_names = ['cp_power']
 dynamic_cov_names = ['oat', 'oah', 'downstream_chwsstpt']
 sc = MinMaxScaler(feature_range=(0, 1))
@@ -21,9 +21,12 @@ data_loader = DataPreprocessorTiDE(
     group_freq=15,
     test_size=0.2,
     val_size=24,
+    add_time_features=True,
     scaler=sc
 )
 
+# data = data_loader.get_period_data()
+# print(data)
 # future = data_loader.future_series('downstream_chwsstpt', 30)
 # print(future.pd_dataframe())
 
@@ -37,26 +40,6 @@ model = build_tide_1(
     batch_size=32,
     use_future_covs=False)
 
-train_target, train_past_covs = data_loader.train_series()
-test_target, test_past_covs = data_loader.test_series()
-# print(train_past_covs)
-# # future_covs = data_loader.future_series(cov_names, 30) if use_future_covs else None
-#
-model.fit(
-    series=train_target,
-    past_covariates=train_past_covs,
-    # future_covariates=future_covs,
-    val_series=test_target,
-    val_past_covariates=test_past_covs,
-    verbose=True)
-
-# pred = model.predict(
-#     n=6,)
-#     # series=train_target_series,
-#     # past_covariates=train_past_covs)
-#
-# print(pred.pd_dataframe())
-
 # Evaluate the prediction
 # *******************************************************************************
 # mape = mape(test_target_series, pred)
@@ -64,4 +47,4 @@ model.fit(
 
 # Save models
 # *******************************************************************************
-model.save('models/model_tide.pkl')
+model.save('models/model_tide_time.pkl')

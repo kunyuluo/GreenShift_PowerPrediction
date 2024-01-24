@@ -2,8 +2,9 @@ import pickle
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from Helper import GSDataProcessor, PredictAndForecast, Evaluate, plot_results, plot_sample_results
+from Helper import GSDataProcessor, PredictAndForecast, Evaluate
 from Helper import inverse_transform_prediction, scale_data
+from Visualization import VisualizeData
 
 
 # Load the model
@@ -19,9 +20,9 @@ with open('models/model_lstm_{}.pkl'.format(model_index), 'rb') as f:
 
 # Prepare the data
 # *************************************************************************
-file_path = '../new_data_0102.csv'
+file_path = '../Data/new_data_0102.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
-n_input, n_output = 6, 6
+n_input, n_output = 24, 1
 
 sc = MinMaxScaler(feature_range=(0, 1))
 data = GSDataProcessor(
@@ -86,7 +87,7 @@ print('LSTM Model\'s var ratio is: {}%'.format(round(evals.var_ratio*100, 1)))
 
 # Visualize the results
 # *************************************************************************
-# plot_results(actual_values, predict_values)
-plot_results(actual_values, predict_values, ylim=(0, 180))
-# plot_sample_results(actual_values, predict_values)
+# VisualizeData.plot_results(actual_values, predict_values)
+VisualizeData.plot_results(actual_values, predict_values, ylim=(0, 180))
+# VisualizeData.plot_sample_results(actual_values, predict_values)
 
