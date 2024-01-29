@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.preprocessing import MinMaxScaler
+from darts import concatenate
 from darts import TimeSeries
 from darts.models import TiDEModel
 from Time_Features import TimeCovariates
@@ -27,12 +28,19 @@ def construct_date_columns(df: pd.DataFrame, date_column: str = 'data_time'):
 
 
 class DefaultValueFiller:
-    def __init__(self, df: pd.DataFrame, feature_names=None):
+    """
+    Default_value_mode:
+    0: Calculate default value based on the entire dataset.
+    1: Calculate default value based on monthly data.
+    """
+
+    def __init__(self, df: pd.DataFrame, feature_names=None, default_value_mode: int = 0):
 
         feature_names = [] if feature_names is None else feature_names
 
         self.df = df
         self.feature_names = feature_names
+        self.default_value_mode = default_value_mode
         self.datetime_column = 'data_time'
         self.feature_data = self.get_feature_data()
         # self.new_dataset = self.fill_missing_value()
@@ -56,18 +64,15 @@ class DefaultValueFiller:
 
         return feature_data
 
-    def fill_missing_value(self):
-
-        data = self.get_feature_data()
-        # Construct new dataframe without missing value for each timestep
-        # *******************************************************************************
-        datetimes = []
-        dt_min = data['data_time'].min()
-        dt_max = data['data_time'].max()
+    @staticmethod
+    def get_date_range(data: pd.DataFrame, date_column: str = 'data_time'):
+        dt_min = data[date_column].min()
+        dt_max = data[date_column].max()
         year_range = range(dt_min.year, dt_max.year + 1)
 
         months_range = {}
         days_range = {}
+
         for year in year_range:
             month_min = data[data['data_time'].dt.year == year]['data_time'].dt.month.min()
             month_max = data[data['data_time'].dt.year == year]['data_time'].dt.month.max()
@@ -77,6 +82,16 @@ class DefaultValueFiller:
                            (data['data_time'].dt.month == month_max)]['data_time'].dt.day.max()
             months_range[year] = range(month_min, month_max + 1)
             days_range[year] = (day_min, day_max)
+
+        return year_range, months_range, days_range
+
+    def fill_missing_value(self):
+
+        data = self.get_feature_data()
+        # Construct new dataframe without missing value for each timestep
+        # *******************************************************************************
+        datetimes = []
+        year_range, months_range, days_range = DefaultValueFiller.get_date_range(data)
 
         # start_day, end_day = dt_min.day, dt_max.day
         num_days_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -104,7 +119,7 @@ class DefaultValueFiller:
                                     datetimes.append(
                                         dt.datetime(year=year, month=month, day=day, hour=hour, minute=minute))
                     else:
-                        for day in range(1, num_days_month[i] + 1):
+                        for day in range(1, num_days_month[month - 1] + 1):
                             for hour in range(24):
                                 for minute in range(60):
                                     datetimes.append(
@@ -114,31 +129,51 @@ class DefaultValueFiller:
         new_df['weekday'] = new_df['data_time'].dt.weekday
 
         for feature in self.feature_names:
-            default = self.calc_default_value(feature)
-            filled_data = []
-            for date in datetimes:
-                value = self.feature_data[(self.feature_data['data_time'] == date)][feature].values
+            if self.default_value_mode == 0:
+                default = self.calc_default_value(feature)
+                filled_data = []
+                for date in datetimes:
+                    value = self.feature_data[(self.feature_data['data_time'] == date)][feature].values
 
-                if len(value) == 0:
-                    weekday = date.weekday()
-                    if weekday in [0, 1, 2, 3, 4]:
-                        value = default[0][date.hour][date.minute]
-                    elif weekday in [5, 6]:
-                        value = default[1][date.hour][date.minute]
+                    if len(value) == 0:
+                        weekday = date.weekday()
+                        if weekday in [0, 1, 2, 3, 4]:
+                            value = default[0][date.hour][date.minute]
+                        elif weekday in [5, 6]:
+                            value = default[1][date.hour][date.minute]
 
-                    filled_data.append(value)
-                else:
-                    filled_data.append(value[0])
+                        filled_data.append(value)
+                    else:
+                        filled_data.append(value[0])
+            else:
+                default = self.calc_default_value_monthly(feature)
+                filled_data = []
+                for date in datetimes:
+                    value = self.feature_data[(self.feature_data['data_time'] == date)][feature].values
+
+                    if len(value) == 0:
+                        current_year = date.year
+                        current_month = date.month
+                        weekday = date.weekday()
+                        if weekday in [0, 1, 2, 3, 4]:
+                            value = default[current_year][current_month][0][date.hour][date.minute]
+                        elif weekday in [5, 6]:
+                            value = default[current_year][current_month][1][date.hour][date.minute]
+                        filled_data.append(value)
+                    else:
+                        filled_data.append(value[0])
 
             # Fill the strange zero value:
-            self.fill_strange_value(filled_data)
+            DefaultValueFiller.fill_zero_value(filled_data)
+            DefaultValueFiller.fill_strange_value(filled_data)
 
             new_df[feature] = filled_data
             # new_df.drop(['weekday'], axis=1, inplace=True)
 
         return new_df
 
-    def fill_strange_value(self, data):
+    @staticmethod
+    def fill_zero_value(data):
         """
         Replace zero value in the input list with its previous value.
         """
@@ -148,10 +183,22 @@ class DefaultValueFiller:
                     data[i] = data[i + 1]
                 else:
                     data[i] = data[i - 1]
-            elif data[i] != 0 and data[i - 1] != 0 and 1 - (data[i] / data[i - 1]) > 0.8:
-                data[i] = data[i - 1] * 0.5
-            elif data[i] != 0 and data[i + 1] != 0 and 1 - (data[i + 1] / data[i]) > 0.8:
-                data[i] = data[i + 1] * 0.5
+
+    @staticmethod
+    def fill_strange_value(data):
+        """
+        Replace strange high or low value in the input list with modified ratio of its previous value.
+        """
+        delta_threshold = 0.8
+        modified_ratio = 0.5
+        for i in range(len(data)):
+            if data[i] != 0 and data[i - 1] != 0:
+                if data[i] > data[i - 1] and 1 - (data[i] / data[i - 1]) > delta_threshold:
+                    data[i] = data[i - 1] * modified_ratio
+                elif data[i] < data[i - 1] and 1 - (data[i - 1] / data[i]) > delta_threshold:
+                    data[i] = data[i - 1] * modified_ratio
+                else:
+                    pass
             else:
                 pass
 
@@ -160,36 +207,118 @@ class DefaultValueFiller:
             Calculate average value of every minute in a day by weekday (from Monday to Sunday).
             Use the calculated value to fill empty/missing value in the dataset.
         """
-
         hours = range(24)
         minutes = range(60)
         default_values = {}
 
         weekdays = {}
         weekends = {}
+
         for hour in hours:
             hours_wday = []
             hours_wend = []
             for minute in minutes:
-                value_wday = self.feature_data[((self.feature_data['weekday'] == 0) |
-                                                (self.feature_data['weekday'] == 1) |
-                                                (self.feature_data['weekday'] == 2) |
-                                                (self.feature_data['weekday'] == 3) |
-                                                (self.feature_data['weekday'] == 4)) &
-                                               (self.feature_data['data_time'].dt.hour == hour) &
-                                               (self.feature_data['data_time'].dt.minute == minute)][column_name].mean()
+                value_wday = self.feature_data[
+                    ((self.feature_data['weekday'] == 0) |
+                     (self.feature_data['weekday'] == 1) |
+                     (self.feature_data['weekday'] == 2) |
+                     (self.feature_data['weekday'] == 3) |
+                     (self.feature_data['weekday'] == 4)) &
+                    (self.feature_data['data_time'].dt.hour == hour) &
+                    (self.feature_data['data_time'].dt.minute == minute)][column_name].mean()
 
-                value_wend = self.feature_data[((self.feature_data['weekday'] == 5) |
-                                                (self.feature_data['weekday'] == 6)) &
-                                               (self.feature_data['data_time'].dt.hour == hour) &
-                                               (self.feature_data['data_time'].dt.minute == minute)][column_name].mean()
+                value_wend = self.feature_data[
+                    ((self.feature_data['weekday'] == 5) |
+                     (self.feature_data['weekday'] == 6)) &
+                    (self.feature_data['data_time'].dt.hour == hour) &
+                    (self.feature_data['data_time'].dt.minute == minute)][
+                    column_name].mean()
+
                 hours_wday.append(value_wday)
                 hours_wend.append(value_wend)
+
             weekdays[hour] = hours_wday
             weekends[hour] = hours_wend
 
         default_values[0] = weekdays
         default_values[1] = weekends
+
+        return default_values
+
+    def calc_default_value_monthly(self, column_name):
+        """
+            Calculate average value of every minute in a day by monthly average.
+            Use the calculated value to fill empty/missing value in the dataset.
+        """
+        days_threshold = 3
+
+        hours = range(24)
+        minutes = range(60)
+        default_values = {}
+
+        data = self.get_feature_data()
+        # Construct new dataframe without missing value for each timestep
+        # *******************************************************************************
+        year_range, months_range, days_range = DefaultValueFiller.get_date_range(data)
+
+        for year in year_range:
+            year_values = {}
+            month_range = months_range[year]
+            day_range = days_range[year]
+
+            for month in month_range:
+                # Calculate the number of days of the last month of the current year:
+                days_of_last_month = day_range[1]
+
+                weekdays = {}
+                weekends = {}
+                month_values = {}
+                for hour in hours:
+                    hours_wday = []
+                    hours_wend = []
+                    for minute in minutes:
+
+                        # If number of days in this month is not enough (less than threshold) to
+                        # calculate monthly average, then use the previous month to do calculation.
+                        current_year = year
+                        current_month = month
+                        if days_of_last_month < days_threshold:
+                            if month == 1:
+                                current_year = year - 1
+                                current_month = 12
+                            else:
+                                current_month = month - 1
+                        else:
+                            pass
+
+                        value_wday = data[(data['data_time'].dt.year == current_year) &
+                                          (data['data_time'].dt.month == current_month) &
+                                          ((data['data_time'].dt.weekday == 0) |
+                                           (data['data_time'].dt.weekday == 1) |
+                                           (data['data_time'].dt.weekday == 2) |
+                                           (data['data_time'].dt.weekday == 3) |
+                                           (data['data_time'].dt.weekday == 4)) &
+                                          (data['data_time'].dt.hour == hour) &
+                                          (data['data_time'].dt.minute == minute)][column_name].mean()
+
+                        value_wend = data[(data['data_time'].dt.year == current_year) &
+                                          (data['data_time'].dt.month == current_month) &
+                                          ((data['data_time'].dt.weekday == 5) |
+                                           (data['data_time'].dt.weekday == 6)) &
+                                          (data['data_time'].dt.hour == hour) &
+                                          (data['data_time'].dt.minute == minute)][column_name].mean()
+
+                        hours_wday.append(value_wday)
+                        hours_wend.append(value_wend)
+
+                    weekdays[hour] = hours_wday
+                    weekends[hour] = hours_wend
+
+                month_values[0] = weekdays
+                month_values[1] = weekends
+
+                year_values[month] = month_values
+            default_values[year] = year_values
 
         return default_values
 
@@ -578,6 +707,16 @@ class DataPreprocessorTiDE:
 
         return target_period, time_feas
 
+    def get_train_test(self) -> tuple[np.array, np.array]:
+
+        if len(self.data) != 0:
+            train = self.data[:self.train_idx]
+            test = self.data[self.train_idx:]
+
+            return train, test
+        else:
+            raise Exception('Data set is empty, cannot split.')
+
     def split_data(self):
         """
         Split data into train, test, and validation sets.
@@ -594,14 +733,15 @@ class DataPreprocessorTiDE:
     def train_series(self):
 
         train, test, val = self.split_data()
+        print(len(train))
 
         past_cov_names = self.dynamic_cov_names + self.time_feature_names
 
         train_target = TimeSeries.from_dataframe(
-            train[self.target_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
+            train[self.target_names], freq=f'{self.group_freq}min')
         train_past_covs = TimeSeries.from_dataframe(
-            train[past_cov_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
-
+            train[past_cov_names], freq=f'{self.group_freq}min')
+        print(len(train[self.target_names]))
         return train_target, train_past_covs
 
     def test_series(self):
@@ -633,6 +773,10 @@ class DataPreprocessorTiDE:
     def future_series(self, cov_names, n_extend):
         """
         Build future covariates for the given features
+
+        Span of past covariates:
+        with n <= output_chunk_length, at least the same time span as target
+        with n > output_chunk_length, at least the same time span as target plus the next n - output_chunk_length time steps after the end of target
 
         Span of future covariate:
         with n <= output_chunk_length, at least the same time span as target plus the next output_chunk_length time steps after the end of target.
@@ -843,16 +987,15 @@ class PredictAndForecastTiDE:
             model: TiDEModel,
             input_chunk_length,
             output_chunk_length,
-            target=None,
-            past_covs=None,
-            future_covs=None) -> None:
+            data_loader: DataPreprocessorTiDE) -> None:
 
         self.model = model
         self.n_input = input_chunk_length
         self.n_output = output_chunk_length
-        self.target = target
-        self.past_covs = past_covs
-        self.future_covs = future_covs
+        self.data_loader = data_loader
+        self.train_target, self.train_past_covs = self.data_loader.train_series()
+        self.test_target, self.test_past_covs = self.data_loader.test_series()
+        self.val_target, self.val_past_covs = self.data_loader.val_series()
 
     def forcast(self, series=None, past_covs=None, future_covs=None):
         yhat = self.model.predict(
@@ -862,19 +1005,33 @@ class PredictAndForecastTiDE:
         yhat = yhat.pd_dataframe().values
         return yhat
 
-    # def get_predictions(self):
-    #     # history is a list of flattened test data + last observation from train data
-    #     test_remainder = self.test.shape[0] % self.n_output
-    #     if test_remainder != 0:
-    #         test = self.test[:-test_remainder]
-    #     else:
-    #         test = self.test
-    #
-    #     history = [x for x in self.train[-self.n_input:, :]]
-    #     history.extend(test)
-    #
-    #     step = round(len(history) / self.n_output)
-    #     # history = []
+    def get_predictions(self):
+
+        train_target, train_past_covs = self.data_loader.train_series()
+        test_target, test_past_covs = self.data_loader.test_series()
+        val_target, val_past_covs = self.data_loader.val_series()
+
+        test_target = concatenate([test_target, val_target], axis=0, ignore_time_axis=True)
+        test_past_covs = concatenate([test_past_covs, val_past_covs], axis=0, ignore_time_axis=True)
+
+        # merged_target = concatenate([train_target, test_target], axis=0, ignore_time_axis=True)
+        # merged_past_covs = concatenate([train_past_covs, test_past_covs], axis=0, ignore_time_axis=True)
+
+        # history is a list of flattened test data + last observation from train data
+        test_remainder = len(test_target) % self.n_output
+        if test_remainder != 0:
+            test_target = test_target[:-test_remainder]
+            test_past_covs = test_past_covs[:-test_remainder]
+        else:
+            test_target = test_target
+            test_past_covs = test_past_covs
+
+        history_target = [x for x in train_target[-self.n_input:, :]]
+        history_past_covs = [x for x in train_past_covs[-self.n_input:, :]]
+        history_target.extend(test)
+
+        # step = round(len(history) / self.n_output)
+        # history = []
     #
     #     # walk-forward validation
     #     predictions = []

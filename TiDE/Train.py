@@ -21,7 +21,7 @@ data_loader = DataPreprocessorTiDE(
     group_freq=15,
     test_size=0.2,
     val_size=24,
-    add_time_features=True,
+    # add_time_features=True,
     scaler=sc
 )
 
@@ -39,11 +39,6 @@ model = build_tide_1(
     epochs=10,
     batch_size=32,
     use_future_covs=False)
-
-# Evaluate the prediction
-# *******************************************************************************
-# mape = mape(test_target_series, pred)
-# print('TiDE Model\'s mape is: {}'.format(mape))
 
 # Save models
 # *******************************************************************************

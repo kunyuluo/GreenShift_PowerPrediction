@@ -34,40 +34,38 @@ data_loader = DataPreprocessorTiDE(
     scaler=sc
 )
 
-# train, test, val = data_loader.split_data()
-# print(val)
 train_target_series, train_past_covs = data_loader.train_series()
-test_target_series, test_past_covs = data_loader.test_series()
-val_target_series, val_past_covs = data_loader.val_series()
-merged_series = concatenate([train_target_series, test_target_series], axis=0, ignore_time_axis=True)
-merged_past_covs = concatenate([train_past_covs, test_past_covs], axis=0, ignore_time_axis=True)
-# print(train_past_covs.pd_dataframe())
-# print(test_target_series.pd_dataframe())
-# val_target_series = val_target_series.drop_after(pd.Timestamp('2024-01-01T20'))
-print(val_target_series.pd_dataframe().head(10))
-# series = TimeSeries.from_dataframe(val_target_series.pd_dataframe(), freq='15min')
-# print(series.pd_dataframe())
-# print(merged_series.pd_dataframe())
-# print(merged_past_covs.pd_dataframe())
+# test_target_series, test_past_covs = data_loader.test_series()
+# val_target_series, val_past_covs = data_loader.val_series()
+# merged_series = concatenate([train_target_series, test_target_series], axis=0, ignore_time_axis=True)
+# merged_past_covs = concatenate([train_past_covs, test_past_covs], axis=0, ignore_time_axis=True)
+#
+# print(train_target_series.pd_dataframe())
+train, test = data_loader.get_train_test()
+# train, test, val = data_loader.split_data()
+# print(train)
+# print(train.shape)
+train_target_series.pd_dataframe().to_csv('train_target_series.csv')
+train.to_csv('train.csv')
 
 # future_covs = dataset.future_series(cov_names, n_extend) if use_future_covs else None
 # Predict for the entire test set:
 # *******************************************************************************
-pred = model.predict(
-    n=10,
-    series=merged_series,
-    past_covariates=merged_past_covs)
-
-# print(pred.pd_dataframe())
+# pred = model.predict(
+#     n=10,
+#     series=merged_series,
+#     past_covariates=merged_past_covs)
 #
-actuals = inverse_transform_prediction(val_target_series[:10].pd_dataframe().values, 4, sc)
-preds = inverse_transform_prediction(pred.pd_dataframe().values, 4, sc)
-
-# Evaluate the prediction
-# *******************************************************************************
-evals = Evaluate(actuals, preds)
-print('TiDE Model\'s mape is: {}%'.format(round(evals.mape*100, 1)))
-
-# Visualize the results
-# *******************************************************************************
-VisualizeData.plot_results(actuals, preds, ylim=(0, 100))
+# # print(pred.pd_dataframe())
+# #
+# actuals = inverse_transform_prediction(val_target_series[:10].pd_dataframe().values, 4, sc)
+# preds = inverse_transform_prediction(pred.pd_dataframe().values, 4, sc)
+#
+# # Evaluate the prediction
+# # *******************************************************************************
+# evals = Evaluate(actuals, preds)
+# print('TiDE Model\'s mape is: {}%'.format(round(evals.mape*100, 1)))
+#
+# # Visualize the results
+# # *******************************************************************************
+# VisualizeData.plot_results(actuals, preds, ylim=(0, 100))

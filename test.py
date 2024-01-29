@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import datetime as dt
+import time
+from tqdm import tqdm
 from matplotlib import pyplot as plt
 from Helper import DefaultValueFiller
 from Helper import GSDataProcessor
@@ -10,7 +12,7 @@ from Visualization import VisualizeData
 
 # Load data
 # *******************************************************************************
-# data = pd.read_csv('gs_real_time_data_new.csv', low_memory=False)
+data = pd.read_csv('Data/gs_real_time_data_new.csv', low_memory=False)
 # print(data)
 
 # Time zone transfer from UTC to local ('US/Eastern)
@@ -23,30 +25,32 @@ from Visualization import VisualizeData
 # *******************************************************************************
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
 
-# filler = DefaultValueFiller(data, features_name)
+# filler = DefaultValueFiller(data, features_name, 1)
 # feature_data = filler.get_feature_data()
+# print(feature_data)
 # new_df = filler.fill_missing_value()
+# new_df = filler.calc_default_value_monthly('cp_power')
 # print(new_df)
-# new_df.to_csv('new_data_0123.csv', index=False)
+# new_df.to_csv('new_data_0129.csv', index=False)
 
 # power_data = pd.concat([date_local, data[features_name]], axis=1)
 # power_data['weekday'] = power_data['data_time'].dt.weekday
 # print(power_data)
 
-sc = MinMaxScaler(feature_range=(0, 1))
+# sc = MinMaxScaler(feature_range=(0, 1))
 
-target_data = GSDataProcessor(
-    'Data/new_data_0102.csv',
-    feature_names=features_name,
-    start_date=(2023, 9, 18),
-    end_date=(2023, 9, 20),
-    # hour_range=(6, 20),
-    group_freq=15,
-    n_input=6,
-    n_output=6,)
+# target_data = GSDataProcessor(
+#     'Data/new_data_0102.csv',
+#     feature_names=features_name,
+#     start_date=(2023, 9, 18),
+#     end_date=(2023, 9, 20),
+#     # hour_range=(6, 20),
+#     group_freq=15,
+#     n_input=6,
+#     n_output=6,)
     # scaler=sc)
 
-period_data = target_data.get_period_data()
+# period_data = target_data.get_period_data()
 # print(period_data)
 #
 # train = target_data.train
@@ -98,7 +102,7 @@ period_data = target_data.get_period_data()
 # Plot the selected data
 # *******************************************************************************
 # VisualizeData.plot_variable(period_data, 'cp_power', False)
-VisualizeData.plot_variable_no_time(period_data, 'cp_power')
+# VisualizeData.plot_variable_no_time(period_data, 'cp_power')
 # VisualizeData.check_data_distribution(data, 'downstream_chwsstpt')
 # VisualizeData.check_linearity(period_data, 'cp_power', 'downstream_chwsstpt', True)
 # VisualizeData.check_autocorrelation(data, 'cp_power')

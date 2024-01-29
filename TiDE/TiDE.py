@@ -2,6 +2,7 @@ import torch
 from darts.models import TiDEModel
 from Helper import DataPreprocessorTiDE
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks.progress.progress_bar import ProgressBar
 from darts import TimeSeries
 
 
@@ -9,7 +10,7 @@ def build_tide_1(
         dataset: DataPreprocessorTiDE,
         input_chunk_length,
         output_chunk_length,
-        epochs=25,
+        epochs=200,
         batch_size=32,
         use_future_covs: bool = True,
         cov_names=None,
@@ -28,7 +29,7 @@ def build_tide_1(
     # PyTorch Lightning Trainer arguments
     pl_trainer_kwargs = {
         "gradient_clip_val": 1,
-        "max_epochs": 200,
+        "max_epochs": epochs,
         "accelerator": "auto",
         "callbacks": [EarlyStopping(monitor="val_loss", patience=50, min_delta=0.001, verbose=True)],
     }
