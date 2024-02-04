@@ -20,19 +20,23 @@ with open('models/model_lstm_{}.pkl'.format(model_index), 'rb') as f:
 
 # Prepare the data
 # *************************************************************************
-file_path = '../Data/new_data_0102.csv'
+file_path = '../Data/new_data_0129.csv'
 features_name = ['cp_power', 'oat', 'oah', 'downstream_chwsstpt']
-n_input, n_output = 24, 1
+n_input, n_output = 6, 6
+time_feature = False
 
 sc = MinMaxScaler(feature_range=(0, 1))
 data = GSDataProcessor(
     file_path,
     feature_names=features_name,
     test_size=0.2,
+    start_date=(2023, 8, 18),
+    end_date=(2023, 10, 16),
     hour_range=(6, 20),
     group_freq=5,
     n_input=n_input,
     n_output=n_output,
+    add_time_features=time_feature,
     scaler=sc)
 
 train = data.train
@@ -55,10 +59,11 @@ test = data.test
 # Predict for the entire test set:
 # *************************************************************************
 prediction = PredictAndForecast(model, train, test, n_input=n_input, n_output=n_output)
-# predict_values = prediction.get_predictions()
-# actual_values = prediction.updated_test()
-predict_values = inverse_transform_prediction(prediction.get_predictions(), len(features_name), sc)
-actual_values = sc.inverse_transform(prediction.updated_test())
+predict_values = prediction.get_predictions()
+actual_values = prediction.updated_test()
+print(actual_values)
+# predict_values = inverse_transform_prediction(prediction.get_predictions(), len(features_name), sc)
+# actual_values = sc.inverse_transform(prediction.updated_test())
 
 # Walk-Forward Predict for certain length of step:
 # *************************************************************************
@@ -88,6 +93,6 @@ print('LSTM Model\'s var ratio is: {}%'.format(round(evals.var_ratio*100, 1)))
 # Visualize the results
 # *************************************************************************
 # VisualizeData.plot_results(actual_values, predict_values)
-VisualizeData.plot_results(actual_values, predict_values, ylim=(0, 180))
+VisualizeData.plot_results(actual_values, predict_values, ylim=(0, 1))
 # VisualizeData.plot_sample_results(actual_values, predict_values)
 

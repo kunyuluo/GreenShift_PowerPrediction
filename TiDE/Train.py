@@ -1,14 +1,14 @@
 from Helper import DataPreprocessorTiDE
-from darts.metrics import mape
-from darts.models import TiDEModel
 from sklearn.preprocessing import MinMaxScaler
 from TiDE import build_tide_1
 
 # Get data from specific column
 # *******************************************************************************
-file_path = '../Data/new_data_0102.csv'
+file_path = '../Data/new_data_0129.csv'
 target_names = ['cp_power']
 dynamic_cov_names = ['oat', 'oah', 'downstream_chwsstpt']
+n_input, n_output = 47, 7
+
 sc = MinMaxScaler(feature_range=(0, 1))
 
 data_loader = DataPreprocessorTiDE(
@@ -20,8 +20,8 @@ data_loader = DataPreprocessorTiDE(
     # hour_range=(6, 20),
     group_freq=15,
     test_size=0.2,
-    val_size=24,
-    # add_time_features=True,
+    val_size=0,
+    add_time_features=True,
     scaler=sc
 )
 
@@ -34,12 +34,13 @@ data_loader = DataPreprocessorTiDE(
 # *******************************************************************************
 model = build_tide_1(
     data_loader,
-    input_chunk_length=48,
-    output_chunk_length=10,
-    epochs=10,
+    input_chunk_length=n_input,
+    output_chunk_length=n_output,
+    epochs=100,
     batch_size=32,
+    use_rin=True,
     use_future_covs=False)
 
 # Save models
 # *******************************************************************************
-model.save('models/model_tide_time.pkl')
+model.save('models/model_opt.pkl')

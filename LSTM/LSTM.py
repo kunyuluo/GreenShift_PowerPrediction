@@ -7,17 +7,22 @@ from keras.optimizers import Adam
 from Helper import GSDataProcessor
 
 
-def build_lstm_1(dataset: GSDataProcessor, epochs=25, batch_size=32):
+def build_lstm_1(
+        dataset: GSDataProcessor,
+        epochs: int = 25,
+        batch_size: int = 32,
+        lstm_dim: int = 200,
+        dense_dim: int = 50):
     """
       Builds, compiles, and fits our Multivariate_LSTM baseline model.
     """
 
     n_timesteps, n_features, n_outputs = dataset.X_train.shape[1], dataset.X_train.shape[2], dataset.y_train.shape[1]
-    callbacks = [tf.keras.callbacks.EarlyStopping(patience=40, restore_best_weights=True)]
+    callbacks = [tf.keras.callbacks.EarlyStopping(patience=40, restore_best_weights=True, min_delta=0.001)]
     opt = Adam(learning_rate=0.001)
     model = Sequential()
-    model.add(LSTM(350, input_shape=(n_timesteps, n_features)))
-    model.add(Dense(50))
+    model.add(LSTM(lstm_dim, input_shape=(n_timesteps, n_features)))
+    model.add(Dense(dense_dim))
     model.add(Dense(n_outputs))
 
     print("compliling baseline model")
@@ -25,7 +30,7 @@ def build_lstm_1(dataset: GSDataProcessor, epochs=25, batch_size=32):
 
     print("fitting model")
     history = model.fit(dataset.X_train, dataset.y_train, batch_size=batch_size, epochs=epochs,
-                        validation_data=(dataset.X_test, dataset.y_test), verbose=1, callbacks=callbacks)
+                        validation_data=(dataset.X_test, dataset.y_test), verbose=1)
 
     return model, history
 

@@ -22,11 +22,11 @@ class TimeCovariates():
             self,
             datetimes,
             add_moh: bool = False,
-            add_hod: bool = True,
+            add_hod: bool = False,
             add_dow: bool = True,
             add_dom: bool = False,
             add_doy: bool = False,
-            add_moy: bool = True,
+            add_moy: bool = False,
             add_woy: bool = False,
             normalized=True,
             normalize_range=(0, 1)):

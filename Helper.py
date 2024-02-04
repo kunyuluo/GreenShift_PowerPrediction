@@ -337,13 +337,12 @@ class GSDataProcessor:
                  n_output: int = 5,
                  time_zone_transfer: bool = False,
                  date_column: str = 'data_time',
+                 add_time_features: bool = False,
                  scaler=None):
 
         feature_names = [] if feature_names is None else feature_names
 
         data = df if df is not None else pd.read_csv(file_path, low_memory=False)
-
-        num_features = len(feature_names) if len(feature_names) > 0 else data.shape[1] - 1
 
         self.df = data
         self.feature_names = feature_names
@@ -356,8 +355,16 @@ class GSDataProcessor:
         self.n_output = n_output
         self.time_zone_transfer = time_zone_transfer
         self.date_column = date_column
+        self.add_time_features = add_time_features
         self.scaler = scaler
-        self.num_features = num_features
+
+        period_data = self.get_period_data()
+        self.data = period_data[0]
+        self.time_feature_names = period_data[1]
+
+        num_features = len(feature_names) if len(feature_names) > 0 else data.shape[1] - 1
+        self.num_features = num_features + len(self.time_feature_names)
+
         self.train, self.test = self.get_train_test()
         self.X_train, self.y_train = self.to_supervised(self.train)
         self.X_test, self.y_test = self.to_supervised(self.test)
@@ -459,8 +466,24 @@ class GSDataProcessor:
         # target_period = target_period.reset_index()
         # print(target_period)
 
-        return target_period
-        # return target_data
+        if self.scaler is not None:
+            index = target_period.index
+            column_names = target_period.columns
+            target_period = self.scaler.fit_transform(target_period)
+            target_period = pd.DataFrame(target_period, index=index, columns=column_names)
+
+        time_feas = []
+
+        # Add time features as dynamic covariates if needed:
+        if self.add_time_features:
+            dti = target_period.index
+            time_covs = TimeCovariates(dti)
+            time_features = time_covs.get_covariates()
+            target_period = pd.concat([target_period, time_features], axis=1)
+
+            time_feas = time_covs.get_feature_names()
+
+        return target_period, time_feas
 
     def get_train_test(self) -> tuple[np.array, np.array]:
         """
@@ -473,20 +496,11 @@ class GSDataProcessor:
         """
         Split data into train and test sets.
         """
-        data = self.get_period_data()
-        # print(data.index)
 
-        if self.scaler is not None:
-            index = data.index
-            column_names = data.columns
-            data = self.scaler.fit_transform(data)
-            data = pd.DataFrame(data, index=index, columns=column_names)
-            # print(data.head(30))
-
-        if len(data) != 0:
-            train_idx = round(len(data) * (1 - self.test_size))
-            train = data[:train_idx]
-            test = data[train_idx:]
+        if len(self.data) != 0:
+            train_idx = round(len(self.data) * (1 - self.test_size))
+            train = self.data[:train_idx]
+            test = self.data[train_idx:]
             # train = np.array(np.split(train, train.shape[0] / self.timestep))
             # test = np.array(np.split(test, test.shape[0] / self.timestep))
             return train.values, test.values
@@ -595,9 +609,16 @@ class DataPreprocessorTiDE:
         self.data = period_data[0]
 
         self.train_idx = round(len(self.data) * (1 - test_size))
-        self.val_idx = round(len(self.data) * (1 - val_size)) if val_size < 1 else len(self.data) - val_size
+        if val_size == 0:
+            self.val_idx = len(self.data) - 1
+        else:
+            if val_size < 1:
+                self.val_idx = round(len(self.data) * val_size)
+            else:
+                self.val_idx = len(self.data) - val_size
 
         self.time_feature_names = period_data[1]
+        # self.train, self.test = self.get_train_test()
 
     def format_date(self):
         self.df['data_time'] = pd.to_datetime(self.df[self.date_column])
@@ -707,24 +728,18 @@ class DataPreprocessorTiDE:
 
         return target_period, time_feas
 
-    def get_train_test(self) -> tuple[np.array, np.array]:
-
-        if len(self.data) != 0:
-            train = self.data[:self.train_idx]
-            test = self.data[self.train_idx:]
-
-            return train, test
-        else:
-            raise Exception('Data set is empty, cannot split.')
-
     def split_data(self):
         """
         Split data into train, test, and validation sets.
         """
         if len(self.data) != 0:
             train = self.data[:self.train_idx]
-            test = self.data[self.train_idx: self.val_idx]
-            val = self.data[self.val_idx:]
+            if self.val_idx == len(self.data) - 1:
+                test = self.data[self.train_idx:]
+                val = None
+            else:
+                test = self.data[self.train_idx: self.val_idx]
+                val = self.data[self.val_idx:]
 
             return train, test, val
         else:
@@ -733,7 +748,6 @@ class DataPreprocessorTiDE:
     def train_series(self):
 
         train, test, val = self.split_data()
-        print(len(train))
 
         past_cov_names = self.dynamic_cov_names + self.time_feature_names
 
@@ -741,7 +755,7 @@ class DataPreprocessorTiDE:
             train[self.target_names], freq=f'{self.group_freq}min')
         train_past_covs = TimeSeries.from_dataframe(
             train[past_cov_names], freq=f'{self.group_freq}min')
-        print(len(train[self.target_names]))
+
         return train_target, train_past_covs
 
     def test_series(self):
@@ -751,9 +765,9 @@ class DataPreprocessorTiDE:
         past_cov_names = self.dynamic_cov_names + self.time_feature_names
 
         test_target = TimeSeries.from_dataframe(
-            test[self.target_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
+            test[self.target_names], freq=f'{self.group_freq}min')
         test_past_covs = TimeSeries.from_dataframe(
-            test[past_cov_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
+            test[past_cov_names], freq=f'{self.group_freq}min')
 
         return test_target, test_past_covs
 
@@ -761,12 +775,16 @@ class DataPreprocessorTiDE:
         # data = self.get_period_data()
         train, test, val = self.split_data()
 
-        past_cov_names = self.dynamic_cov_names + self.time_feature_names
+        if val is not None:
+            past_cov_names = self.dynamic_cov_names + self.time_feature_names
 
-        val_target = TimeSeries.from_dataframe(
-            val[self.target_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
-        val_past_covs = TimeSeries.from_dataframe(
-            val[past_cov_names], fill_missing_dates=True, fillna_value=0.0, freq=f'{self.group_freq}min')
+            val_target = TimeSeries.from_dataframe(
+                val[self.target_names], freq=f'{self.group_freq}min')
+            val_past_covs = TimeSeries.from_dataframe(
+                val[past_cov_names], freq=f'{self.group_freq}min')
+        else:
+            val_target = None
+            val_past_covs = None
 
         return val_target, val_past_covs
 
@@ -987,15 +1005,18 @@ class PredictAndForecastTiDE:
             model: TiDEModel,
             input_chunk_length,
             output_chunk_length,
-            data_loader: DataPreprocessorTiDE) -> None:
+            data_loader: DataPreprocessorTiDE,
+            hour_range: tuple = None) -> None:
 
         self.model = model
         self.n_input = input_chunk_length
         self.n_output = output_chunk_length
         self.data_loader = data_loader
+        self.hour_range = hour_range
         self.train_target, self.train_past_covs = self.data_loader.train_series()
         self.test_target, self.test_past_covs = self.data_loader.test_series()
         self.val_target, self.val_past_covs = self.data_loader.val_series()
+        # self.train, self.test, self.val = self.data_loader.split_data()
 
     def forcast(self, series=None, past_covs=None, future_covs=None):
         yhat = self.model.predict(
@@ -1009,15 +1030,8 @@ class PredictAndForecastTiDE:
 
         train_target, train_past_covs = self.data_loader.train_series()
         test_target, test_past_covs = self.data_loader.test_series()
-        val_target, val_past_covs = self.data_loader.val_series()
+        # val_target, val_past_covs = self.data_loader.val_series()
 
-        test_target = concatenate([test_target, val_target], axis=0, ignore_time_axis=True)
-        test_past_covs = concatenate([test_past_covs, val_past_covs], axis=0, ignore_time_axis=True)
-
-        # merged_target = concatenate([train_target, test_target], axis=0, ignore_time_axis=True)
-        # merged_past_covs = concatenate([train_past_covs, test_past_covs], axis=0, ignore_time_axis=True)
-
-        # history is a list of flattened test data + last observation from train data
         test_remainder = len(test_target) % self.n_output
         if test_remainder != 0:
             test_target = test_target[:-test_remainder]
@@ -1026,32 +1040,56 @@ class PredictAndForecastTiDE:
             test_target = test_target
             test_past_covs = test_past_covs
 
-        history_target = [x for x in train_target[-self.n_input:, :]]
-        history_past_covs = [x for x in train_past_covs[-self.n_input:, :]]
-        history_target.extend(test)
+        # time_index_train = self.train.index
+        time_index_test = test_target.pd_dataframe().index
 
-        # step = round(len(history) / self.n_output)
-        # history = []
-    #
-    #     # walk-forward validation
-    #     predictions = []
-    #     window_start = 0
-    #     for i in range(step):
-    #
-    #         if window_start <= len(history) - self.n_input - self.n_output:
-    #             # print('pred no {}, window_start {}'.format(i+1, window_start))
-    #             x_input = np.array(history[window_start:window_start + self.n_input])
-    #             x_input = x_input.reshape((1, x_input.shape[0], x_input.shape[1]))
-    #             yhat_sequence = self.forcast(x_input)
-    #             # print('pred no {}'.format(i))
-    #             # store the predictions
-    #             predictions.append(yhat_sequence)
-    #
-    #         window_start += self.n_output
-    #         # get real observation and add to history for predicting the next week
-    #         # history.append(self.test[i, :])
-    #
-    #     return np.array(predictions)
+        history_targets = train_target
+        history_covs = train_past_covs
+
+        step = round(len(test_target) / self.n_output)
+
+        # walk-forward validation
+        predictions = []
+        for i in range(step):
+            yhat_sequence = self.forcast(
+                series=history_targets,
+                past_covs=history_covs)
+
+            start_idx = i * self.n_output
+            end_idx = start_idx + self.n_output
+            history_targets = concatenate(
+                [history_targets, test_target[start_idx:end_idx]], axis=0, ignore_time_axis=True)
+            history_covs = concatenate(
+                [history_covs, test_past_covs[start_idx:end_idx]], axis=0, ignore_time_axis=True)
+
+            # store the predictions
+            predictions.extend(yhat_sequence)
+
+        predictions = pd.DataFrame(predictions, index=time_index_test)
+
+        if self.hour_range is not None:
+            predictions = predictions[
+                (predictions.index.hour >= self.hour_range[0]) &
+                (predictions.index.hour < self.hour_range[1])]
+
+        return predictions
+
+    def updated_test(self):
+        test_target, test_past_covs = self.data_loader.test_series()
+
+        test_remainder = len(test_target) % self.n_output
+        if test_remainder != 0:
+            test_target = test_target[:-test_remainder]
+        else:
+            test_target = test_target
+
+        test = test_target.pd_dataframe()
+        if self.hour_range is not None:
+            test = test[
+                (test.index.hour >= self.hour_range[0]) &
+                (test.index.hour < self.hour_range[1])]
+
+        return test
 
 
 class Evaluate:

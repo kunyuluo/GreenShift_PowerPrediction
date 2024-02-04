@@ -12,6 +12,7 @@ def build_tide_1(
         output_chunk_length,
         epochs=200,
         batch_size=32,
+        use_rin: bool = False,
         use_future_covs: bool = True,
         cov_names=None,
         n_extend: int = 24):
@@ -57,7 +58,7 @@ def build_tide_1(
 
     # Create the model
     # *************************************************************************
-    model_tide = TiDEModel(**common_model_args, use_reversible_instance_norm=False)
+    model_tide = TiDEModel(**common_model_args, use_reversible_instance_norm=use_rin)
 
     train_target_series, train_past_covs = dataset.train_series()
     test_target_series, test_past_covs = dataset.test_series()
